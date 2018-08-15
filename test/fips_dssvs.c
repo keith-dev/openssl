@@ -1,1 +1,1 @@
-../fips/dsa/fips_dssvs.c
+openssl-0.9.8zh/../fips/dsa/fips_dssvs.c

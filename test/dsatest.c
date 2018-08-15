@@ -1,1 +1,1 @@
-../crypto/dsa/dsatest.c
+openssl-0.9.8zh/../crypto/dsa/dsatest.c

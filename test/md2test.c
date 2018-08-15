@@ -1,1 +1,1 @@
-../crypto/md2/md2test.c
+openssl-0.9.8zh/../crypto/md2/md2test.c

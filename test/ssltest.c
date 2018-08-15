@@ -1,1 +1,1 @@
-../ssl/ssltest.c
+openssl-0.9.8zh/../ssl/ssltest.c

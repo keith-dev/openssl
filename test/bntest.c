@@ -1,1 +1,1 @@
-../crypto/bn/bntest.c
+openssl-0.9.8zh/../crypto/bn/bntest.c

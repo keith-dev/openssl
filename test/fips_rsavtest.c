@@ -1,1 +1,1 @@
-../fips/rsa/fips_rsavtest.c
+openssl-0.9.8zh/../fips/rsa/fips_rsavtest.c

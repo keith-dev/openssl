@@ -1,1 +1,1 @@
-../crypto/md4/md4test.c
+openssl-0.9.8zh/../crypto/md4/md4test.c

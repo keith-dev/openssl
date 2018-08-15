@@ -1,1 +1,1 @@
-../crypto/md5/md5test.c
+openssl-0.9.8zh/../crypto/md5/md5test.c

@@ -1,1 +1,1 @@
-../crypto/hmac/hmactest.c
+openssl-0.9.8zh/../crypto/hmac/hmactest.c

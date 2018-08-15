@@ -1,1 +1,1 @@
-../fips/sha/fips_shatest.c
+openssl-0.9.8zh/../fips/sha/fips_shatest.c

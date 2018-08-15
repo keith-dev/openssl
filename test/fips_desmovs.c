@@ -1,1 +1,1 @@
-../fips/des/fips_desmovs.c
+openssl-0.9.8zh/../fips/des/fips_desmovs.c

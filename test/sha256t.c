@@ -1,1 +1,1 @@
-../crypto/sha/sha256t.c
+openssl-0.9.8zh/../crypto/sha/sha256t.c

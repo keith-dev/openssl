@@ -1,1 +1,1 @@
-../fips/hmac/fips_hmactest.c
+openssl-0.9.8zh/../fips/hmac/fips_hmactest.c

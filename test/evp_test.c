@@ -1,1 +1,1 @@
-../crypto/evp/evp_test.c
+openssl-0.9.8zh/../crypto/evp/evp_test.c

@@ -1,1 +1,1 @@
-../fips/rand/fips_randtest.c
+openssl-0.9.8zh/../fips/rand/fips_randtest.c

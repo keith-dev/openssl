@@ -1,1 +1,1 @@
-../crypto/ecdh/ecdhtest.c
+openssl-0.9.8zh/../crypto/ecdh/ecdhtest.c
