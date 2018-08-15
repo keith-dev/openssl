@@ -295,6 +295,7 @@ int ssl3_accept(SSL *s)
 				}
 
 			s->init_num=0;
+			s->s3->flags &= ~SSL3_FLAGS_SGC_RESTART_DONE;
 
 			if (s->state != SSL_ST_RENEGOTIATE)
 				{
@@ -869,6 +870,14 @@ int ssl3_check_client_hello(SSL *s)
 	int ok;
 	long n;
 
+	/* We only allow the client to restart the handshake once per
+	 * negotiation. */
+	if (s->s3->flags & SSL3_FLAGS_SGC_RESTART_DONE)
+		{
+		SSLerr(SSL_F_SSL3_CHECK_CLIENT_HELLO, SSL_R_MULTIPLE_SGC_RESTARTS);
+		return -1;
+		}
+
 	/* this function is called when we really expect a Certificate message,
 	 * so permit appropriate message length */
 	n=s->method->ssl_get_message(s,
@@ -897,6 +906,7 @@ int ssl3_check_client_hello(SSL *s)
 			s->s3->tmp.ecdh = NULL;
 			}
 #endif
+		s->s3->flags |= SSL3_FLAGS_SGC_RESTART_DONE;
 		return 2;
 		}
 	return 1;
@@ -2291,6 +2301,7 @@ int ssl3_get_client_key_exchange(SSL *s)
 		if (i <= 0)
 			{
 			SSLerr(SSL_F_SSL3_GET_CLIENT_KEY_EXCHANGE,ERR_R_DH_LIB);
+			BN_clear_free(pub);
 			goto err;
 			}
 
@@ -2900,7 +2911,7 @@ int ssl3_get_cert_verify(SSL *s)
 		SSL3_ST_SR_CERT_VRFY_A,
 		SSL3_ST_SR_CERT_VRFY_B,
 		-1,
-		514, /* 514? */
+		516, /* Enough for 4096 bit RSA key with TLS v1.2 */
 		&ok);
 
 	if (!ok) return((int)n);

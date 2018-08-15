@@ -812,17 +812,21 @@ unsigned char *ssl_add_serverhello_tlsext(SSL *s, unsigned char *p, unsigned cha
 		}
 
 #ifndef OPENSSL_NO_HEARTBEATS
-	/* Add Heartbeat extension */
-	s2n(TLSEXT_TYPE_heartbeat,ret);
-	s2n(1,ret);
-	/* Set mode:
-	 * 1: peer may send requests
-	 * 2: peer not allowed to send requests
-	 */
-	if (s->tlsext_heartbeat & SSL_TLSEXT_HB_DONT_RECV_REQUESTS)
-		*(ret++) = SSL_TLSEXT_HB_DONT_SEND_REQUESTS;
-	else
-		*(ret++) = SSL_TLSEXT_HB_ENABLED;
+	/* Add Heartbeat extension if we've received one */
+	if (s->tlsext_heartbeat & SSL_TLSEXT_HB_ENABLED)
+		{
+		s2n(TLSEXT_TYPE_heartbeat,ret);
+		s2n(1,ret);
+		/* Set mode:
+		 * 1: peer may send requests
+		 * 2: peer not allowed to send requests
+		 */
+		if (s->tlsext_heartbeat & SSL_TLSEXT_HB_DONT_RECV_REQUESTS)
+			*(ret++) = SSL_TLSEXT_HB_DONT_SEND_REQUESTS;
+		else
+			*(ret++) = SSL_TLSEXT_HB_ENABLED;
+
+		}
 #endif
 
 #ifndef OPENSSL_NO_NEXTPROTONEG
@@ -1244,6 +1248,12 @@ int ssl_parse_clienthello_tlsext(SSL *s, unsigned char **p, unsigned char *d, in
 				sdata = data;
 				if (dsize > 0)
 					{
+					if (s->tlsext_ocsp_exts)
+						{
+						sk_X509_EXTENSION_pop_free(s->tlsext_ocsp_exts,
+									   X509_EXTENSION_free);
+						}
+
 					s->tlsext_ocsp_exts =
 						d2i_X509_EXTENSIONS(NULL,
 							&sdata, dsize);
@@ -1273,6 +1283,8 @@ int ssl_parse_clienthello_tlsext(SSL *s, unsigned char **p, unsigned char *d, in
 							s->tlsext_heartbeat |= SSL_TLSEXT_HB_ENABLED;
 							s->tlsext_heartbeat |= SSL_TLSEXT_HB_DONT_SEND_REQUESTS;
 							break;
+				default:	*al = SSL_AD_ILLEGAL_PARAMETER;
+							return 0;
 				}
 			}
 #endif
@@ -1544,6 +1556,8 @@ int ssl_parse_serverhello_tlsext(SSL *s, unsigned char **p, unsigned char *d, in
 							s->tlsext_heartbeat |= SSL_TLSEXT_HB_ENABLED;
 							s->tlsext_heartbeat |= SSL_TLSEXT_HB_DONT_SEND_REQUESTS;
 							break;
+				default:	*al = SSL_AD_ILLEGAL_PARAMETER;
+							return 0;
 				}
 			}
 #endif
