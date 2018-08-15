@@ -4,7 +4,7 @@
 ## Makefile for OpenSSL
 ##
 
-VERSION=0.9.7g
+VERSION=0.9.7h
 MAJOR=0
 MINOR=9.7
 SHLIB_VERSION_NUMBER=0.9.7
@@ -69,7 +69,7 @@ EXE_EXT=
 ARFLAGS= 
 AR=ar $(ARFLAGS) r
 RANLIB= /usr/bin/ranlib
-PERL= /usr/bin/perl
+PERL= /usr/local/bin/perl
 TAR= tar
 TARFLAGS= --no-recursion
 MAKEDEPPROG=makedepend
@@ -104,6 +104,7 @@ PROCESSOR=
 # Set DES_ENC to des_enc.o if you want to use the C version
 #There are 4 x86 assember options.
 FIPS_DES_ENC= 
+FIPS_AES_ENC= 
 DES_ENC= des_enc.o fcrypt_b.o
 #DES_ENC= des_enc.o fcrypt_b.o          # C
 #DES_ENC= asm/dx86-elf.o asm/yx86-elf.o # elf
@@ -188,7 +189,7 @@ SDIRS=  objects \
 	buffer bio stack lhash rand err \
 	evp asn1 pem x509 x509v3 conf txt_db pkcs7 pkcs12 comp ocsp ui krb5
 
-FDIRS=	sha1 rand des aes dsa rsa dh
+FDIRS=	sha rand des aes dsa rsa dh hmac
 
 # tests to perform.  "alltests" is a special word indicating that all tests
 # should be performed.
@@ -231,7 +232,7 @@ sigs:	$(SIGS)
 libcrypto.a.sha1: libcrypto.a
 	@if egrep 'define OPENSSL_FIPS' $(TOP)/include/openssl/opensslconf.h > /dev/null; then \
 		$(RANLIB) libcrypto.a; \
-		fips/sha1/fips_standalone_sha1 libcrypto.a > libcrypto.a.sha1; \
+		fips/sha/fips_standalone_sha1 libcrypto.a > libcrypto.a.sha1; \
 	fi
 
 sub_all:
@@ -239,7 +240,7 @@ sub_all:
 	do \
 	if [ -d "$$i" ]; then \
 		(cd $$i && echo "making all in $$i..." && \
-		$(MAKE) CC='${CC}' PLATFORM='${PLATFORM}' CFLAG='${CFLAG}' AS='${AS}' ASFLAG='${ASFLAG}' SDIRS='$(SDIRS)' FDIRS='$(FDIRS)' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' FIPS_DES_ENC='${FIPS_DES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' FIPS_SHA1_ASM_OBJ='${FIPS_SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' AR='${AR}' PROCESSOR='${PROCESSOR}' PERL='${PERL}' RANLIB='${RANLIB}' KRB5_INCLUDES='${KRB5_INCLUDES}' LIBKRB5='${LIBKRB5}' EXE_EXT='${EXE_EXT}' SHARED_LIBS='${SHARED_LIBS}' SHLIB_EXT='${SHLIB_EXT}' SHLIB_TARGET='${SHLIB_TARGET}' all ) || exit 1; \
+		$(MAKE) CC='${CC}' PLATFORM='${PLATFORM}' CFLAG='${CFLAG}' AS='${AS}' ASFLAG='${ASFLAG}' SDIRS='$(SDIRS)' FDIRS='$(FDIRS)' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' FIPS_DES_ENC='${FIPS_DES_ENC}' FIPS_AES_ENC='${FIPS_AES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' FIPS_SHA1_ASM_OBJ='${FIPS_SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' AR='${AR}' PROCESSOR='${PROCESSOR}' PERL='${PERL}' RANLIB='${RANLIB}' KRB5_INCLUDES='${KRB5_INCLUDES}' LIBKRB5='${LIBKRB5}' EXE_EXT='${EXE_EXT}' SHARED_LIBS='${SHARED_LIBS}' SHLIB_EXT='${SHLIB_EXT}' SHLIB_TARGET='${SHLIB_TARGET}' all ) || exit 1; \
 	else \
 		$(MAKE) $$i; \
 	fi; \
@@ -250,7 +251,7 @@ sub_target:
 	do \
 	if [ -d "$$i" ]; then \
 		(cd $$i && echo "making $(TARGET) in $$i..." && \
-		$(MAKE) CC='${CC}' PLATFORM='${PLATFORM}' CFLAG='${CFLAG}' AS='${AS}' ASFLAG='${ASFLAG}' SDIRS='$(SDIRS)' FDIRS='$(FDIRS)' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' FIPS_DES_ENC='${FIPS_DES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' FIPS_SHA1_ASM_OBJ='${FIPS_SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' AR='${AR}' PROCESSOR='${PROCESSOR}' PERL='${PERL}' RANLIB='${RANLIB}' KRB5_INCLUDES='${KRB5_INCLUDES}' LIBKRB5='${LIBKRB5}' EXE_EXT='${EXE_EXT}' SHARED_LIBS='${SHARED_LIBS}' SHLIB_EXT='${SHLIB_EXT}' SHLIB_TARGET='${SHLIB_TARGET}' TARGET='$(TARGET)' sub_target ) || exit 1; \
+		$(MAKE) CC='${CC}' PLATFORM='${PLATFORM}' CFLAG='${CFLAG}' AS='${AS}' ASFLAG='${ASFLAG}' SDIRS='$(SDIRS)' FDIRS='$(FDIRS)' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' FIPS_DES_ENC='${FIPS_DES_ENC}' FIPS_AES_ENC='${FIPS_AES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' FIPS_SHA1_ASM_OBJ='${FIPS_SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' AR='${AR}' PROCESSOR='${PROCESSOR}' PERL='${PERL}' RANLIB='${RANLIB}' KRB5_INCLUDES='${KRB5_INCLUDES}' LIBKRB5='${LIBKRB5}' EXE_EXT='${EXE_EXT}' SHARED_LIBS='${SHARED_LIBS}' SHLIB_EXT='${SHLIB_EXT}' SHLIB_TARGET='${SHLIB_TARGET}' TARGET='$(TARGET)' sub_target ) || exit 1; \
 	else \
 		$(MAKE) $$i; \
 	fi; \
@@ -259,6 +260,9 @@ sub_target:
 libcrypto$(SHLIB_EXT): libcrypto.a
 	@if [ "$(SHLIB_TARGET)" != "" ]; then \
 		$(MAKE) SHLIBDIRS=crypto build-shared; \
+        	if egrep 'define OPENSSL_FIPS' $(TOP)/include/openssl/opensslconf.h > /dev/null; then \
+                    fips/sha/fips_standalone_sha1 -binary $@ > $@.$${HMAC_EXT:-sha1}; \
+		fi; \
 	else \
 		echo "There's no support for shared libraries on this platform" >&2; \
 	fi
@@ -311,7 +315,7 @@ do_gnu-shared:
 		-Wl,-soname=lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
 		-Wl,-Bsymbolic \
 		-Wl,--whole-archive lib$$i.a \
-		-Wl,--no-whole-archive $$libs ${EX_LIBS} -lc ) || exit 1; \
+		-Wl,--no-whole-archive $$libs ${EX_LIBS} ) || exit 1; \
 	libs="-l$$i $$libs"; \
 	done
 
@@ -323,7 +327,8 @@ do_darwin-shared:
 	if [ "${SHLIBDIRS}" = "ssl" -a -n "$(LIBKRB5)" ]; then \
 		libs="$(LIBKRB5) $$libs"; \
 	fi; \
-	( set -x; ${CC} --verbose -dynamiclib -o lib$$i${SHLIB_EXT} \
+	( set -x; ${CC} ${SHARED_LDFLAGS}
+		--verbose -dynamiclib -o lib$$i${SHLIB_EXT} \
 		lib$$i.a $$libs -all_load -current_version ${SHLIB_MAJOR}.${SHLIB_MINOR} \
 		-compatibility_version ${SHLIB_MAJOR}.`echo ${SHLIB_MINOR} | cut -d. -f1` \
 		-install_name ${INSTALLTOP}/lib/lib$$i${SHLIB_EXT} ) || exit 1; \
@@ -340,7 +345,7 @@ do_cygwin-shared:
 	[ "$(PLATFORM)" = "mingw" ] && shlib=$${i}eay32.dll; \
 	[ -f apps/$$shlib ] && rm apps/$$shlib; \
 	[ -f test/$$shlib ] && rm test/$$shlib; \
-	base=;  [ $$i = "crypto" ] && base=-Wl,--image-base,0xFE00000; \
+	base=;  [ $$i = "crypto" ] && base=-Wl,--image-base,0x63000000; \
 	( set -x; ${CC} ${SHARED_LDFLAGS} \
 		-shared $$base -o $$shlib \
 		-Wl,-Bsymbolic \
@@ -363,7 +368,7 @@ do_alpha-osf1-shared:
 		( set -x; ${CC} ${SHARED_LDFLAGS} \
 			-shared -o lib$$i.so \
 			-set_version "${SHLIB_VERSION_HISTORY}${SHLIB_VERSION_NUMBER}" \
-			-all lib$$i.a -none $$libs ${EX_LIBS} -lc ) || exit 1; \
+			-all lib$$i.a -none $$libs ${EX_LIBS} ) || exit 1; \
 		libs="-l$$i $$libs"; \
 		done; \
 	fi
@@ -382,7 +387,7 @@ do_tru64-shared:
 		( set -x; ${CC} ${SHARED_LDFLAGS} \
 			-shared -msym -o lib$$i.so \
 			-set_version "${SHLIB_VERSION_HISTORY}${SHLIB_VERSION_NUMBER}" \
-			-all lib$$i.a -none $$libs ${EX_LIBS} -lc ) || exit 1; \
+			-all lib$$i.a -none $$libs ${EX_LIBS} ) || exit 1; \
 		libs="-l$$i $$libs"; \
 		done; \
 	fi
@@ -402,7 +407,7 @@ do_tru64-shared-rpath:
 			-shared -msym -o lib$$i.so \
 			-rpath  ${INSTALLTOP}/lib \
 			-set_version "${SHLIB_VERSION_HISTORY}${SHLIB_VERSION_NUMBER}" \
-			-all lib$$i.a -none $$libs ${EX_LIBS} -lc ) || exit 1; \
+			-all lib$$i.a -none $$libs ${EX_LIBS} ) || exit 1; \
 		libs="-l$$i $$libs"; \
 		done; \
 	fi
@@ -420,12 +425,12 @@ do_solaris-shared:
 		( PATH=/usr/ccs/bin:$$PATH ; export PATH; \
 		  MINUSZ='-z '; \
 		  (${CC} -v 2>&1 | grep gcc) > /dev/null && MINUSZ='-Wl,-z,'; \
-		  set -x; ${CC} ${SHARED_LDFLAGS} -G -dy -z text \
+		  set -x; ${CC} ${SHARED_LDFLAGS} \
 			-o lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
 			-h lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
 			-Wl,-Bsymbolic \
 			$${MINUSZ}allextract lib$$i.a $${MINUSZ}defaultextract \
-			$$libs ${EX_LIBS} -lc ) || exit 1; \
+			$$libs ${EX_LIBS} ) || exit 1; \
 		libs="-l$$i $$libs"; \
 		done; \
 	fi
@@ -493,21 +498,12 @@ do_irix-shared:
 		  set -x; ${CC} ${SHARED_LDFLAGS} \
 			-shared -o lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
 			-Wl,-soname,lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
-			$${WHOLELIB} $$libs ${EX_LIBS} -lc) || exit 1; \
+			$${WHOLELIB} $$libs ${EX_LIBS}) || exit 1; \
 		libs="-l$$i $$libs"; \
 		done; \
 	fi
 
 # This assumes that GNU utilities are *not* used
-# HP-UX includes the full pathname of libs we depend on, so we would get
-# ./libcrypto (with ./ as path information) compiled into libssl, hence
-# we omit the SHLIBDEPS. Applications must be linked with -lssl -lcrypto
-# anyway.
-# The object modules are loaded from lib$i.a using the undocumented -Fl
-# option.
-#
-# WARNING: Until DSO is fixed to support a search path, we support SHLIB_PATH
-#          by temporarily specifying "+s"!
 #
 do_hpux-shared:
 	for i in ${SHLIBDIRS}; do \
@@ -520,38 +516,11 @@ do_hpux-shared:
 		shlib=lib$$i.sl.${SHLIB_MAJOR}.${SHLIB_MINOR}; \
 	fi; \
 	[ -f $$shlib ] && rm -f $$shlib; \
-	( set -x; /usr/ccs/bin/ld ${SHARED_LDFLAGS} \
-		+vnocompatwarnings \
-		-b -z +s \
-		-o $$shlib +h $$shlib \
-		-Fl lib$$i.a -ldld -lc ) || exit 1; \
-	chmod a=rx $$shlib; \
-	done
-
-# This assumes that GNU utilities are *not* used
-# HP-UX includes the full pathname of libs we depend on, so we would get
-# ./libcrypto (with ./ as path information) compiled into libssl, hence
-# we omit the SHLIBDEPS. Applications must be linked with -lssl -lcrypto
-# anyway.
-#
-# HP-UX in 64bit mode has "+s" enabled by default; it will search for
-# shared libraries along LD_LIBRARY_PATH _and_ SHLIB_PATH.
-#
-do_hpux64-shared:
-	for i in ${SHLIBDIRS}; do \
-	if [ "${SHLIBDIRS}" = "ssl" -a -n "$(LIBKRB5)" ]; then \
-		libs="$(LIBKRB5) $$libs"; \
-	fi; \
-	if expr $(PLATFORM) : '.*ia64' > /dev/null; then \
-		shlib=lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR}; \
-	else \
-		shlib=lib$$i.sl.${SHLIB_MAJOR}.${SHLIB_MINOR}; \
-	fi; \
-	[ -f $$shlib ] && rm -f $$shlib; \
-	( set -x; /usr/ccs/bin/ld ${SHARED_LDFLAGS} \
-		-b -z \
-		-o $$shlib +h $$shlib \
-		+forceload lib$$i.a -ldl -lc ) || exit 1; \
+	ALLSYMSFLAGS='-Wl,-Fl'; \
+	expr $(PLATFORM) : 'hpux64' > /dev/null && ALLSYMSFLAGS='-Wl,+forceload'; \
+	( set -x; ${CC} ${SHARED_LDFLAGS} \
+		-Wl,-B,symbolic,+vnocompatwarnings,-z,+h,$$shlib \
+		-o $$shlib $$ALLSYMSFLAGS,lib$$i.a -ldld ) || exit 1; \
 	chmod a=rx $$shlib; \
 	done
 
@@ -759,11 +728,15 @@ crypto/objects/obj_mac.h: crypto/objects/objects.pl crypto/objects/objects.txt c
 apps/openssl-vms.cnf: apps/openssl.cnf
 	$(PERL) VMS/VMSify-conf.pl < apps/openssl.cnf > apps/openssl-vms.cnf
 
+crypto/bn/bn_prime.h: crypto/bn/bn_prime.pl
+	$(PERL) crypto/bn/bn_prime.pl >crypto/bn/bn_prime.h
+
+
 TABLE: Configure
 	(echo 'Output of `Configure TABLE'"':"; \
 	$(PERL) Configure TABLE) > TABLE
 
-update: depend errors stacks util/libeay.num util/ssleay.num crypto/objects/obj_dat.h apps/openssl-vms.cnf TABLE
+update: errors stacks util/libeay.num util/ssleay.num crypto/objects/obj_dat.h apps/openssl-vms.cnf crypto/bn/bn_prime.h TABLE depend
 
 # Build distribution tar-file. As the list of files returned by "find" is
 # pretty long, on several platforms a "too many arguments" error or similar
@@ -845,7 +818,16 @@ install_sw:
 				if [ "$(PLATFORM)" != "Cygwin" ]; then \
 					cp $$i $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i.new; \
 					chmod 555 $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i.new; \
-					mv -f $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i.new $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i; \
+					mv -f	$(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i.new \
+						$(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i; \
+					sig="$$i.$${HMAC_EXT:-sha1}"; \
+					if [ -f $$sig ]; then \
+						echo installing $$sig; \
+						cp $$sig $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$sig.new; \
+						chmod 444 $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$sig.new; \
+						mv -f	$(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$sig.new \
+							$(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$sig; \
+					fi; \
 				else \
 					c=`echo $$i | sed 's/^lib\(.*\)\.dll/cyg\1-$(SHLIB_VERSION_NUMBER).dll/'`; \
 					cp $$c $(INSTALL_PREFIX)$(INSTALLTOP)/bin/$$c.new; \
@@ -902,8 +884,8 @@ install_docs:
 			--release=$(VERSION) `basename $$i`") \
 			>  $(INSTALL_PREFIX)$(MANDIR)/man$$sec/$$fn.$${sec}$(MANSUFFIX); \
 		$(PERL) util/extract-names.pl < $$i | \
-			grep -v $$filecase "^$$fn\$$" | \
-			grep -v "[	]" | \
+			(grep -v $$filecase "^$$fn\$$"; true) | \
+			(grep -v "[	]"; true) | \
 			(cd $(INSTALL_PREFIX)$(MANDIR)/man$$sec/; \
 			 while read n; do \
 				$$here/util/point.sh $$fn.$${sec}$(MANSUFFIX) "$$n".$${sec}$(MANSUFFIX); \
@@ -919,8 +901,8 @@ install_docs:
 			--release=$(VERSION) `basename $$i`") \
 			>  $(INSTALL_PREFIX)$(MANDIR)/man$$sec/$$fn.$${sec}$(MANSUFFIX); \
 		$(PERL) util/extract-names.pl < $$i | \
-			grep -v $$filecase "^$$fn\$$" | \
-			grep -v "[	]" | \
+			(grep -v $$filecase "^$$fn\$$"; true) | \
+			(grep -v "[	]"; true) | \
 			(cd $(INSTALL_PREFIX)$(MANDIR)/man$$sec/; \
 			 while read n; do \
 				$$here/util/point.sh $$fn.$${sec}$(MANSUFFIX) "$$n".$${sec}$(MANSUFFIX); \

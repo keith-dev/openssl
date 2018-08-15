@@ -43,6 +43,7 @@ $infile="MINFO";
 	);
 
 $platform="";
+my $xcflags="";
 foreach (@ARGV)
 	{
 	if (!&read_options && !defined($ops{$_}))
@@ -210,6 +211,8 @@ $inc_dir=(defined($VARS{'INC'}))?$VARS{'INC'}:$inc_def;
 
 $bin_dir=$bin_dir.$o unless ((substr($bin_dir,-1,1) eq $o) || ($bin_dir eq ''));
 
+$cflags= "$xcflags$cflags" if $xcflags ne "";
+
 $cflags.=" -DOPENSSL_NO_IDEA" if $no_idea;
 $cflags.=" -DOPENSSL_NO_AES"  if $no_aes;
 $cflags.=" -DOPENSSL_NO_RC2"  if $no_rc2;
@@ -261,6 +264,63 @@ if ($msdos)
 $link="$bin_dir$link" if ($link !~ /^\$/);
 
 $INSTALLTOP =~ s|/|$o|g;
+
+#############################################
+# We parse in input file and 'store' info for later printing.
+open(IN,"<$infile") || die "unable to open $infile:$!\n";
+$_=<IN>;
+for (;;)
+	{
+	chop;
+
+	($key,$val)=/^([^=]+)=(.*)/;
+	if ($key eq "RELATIVE_DIRECTORY")
+		{
+		if ($lib ne "")
+			{
+			$uc=$lib;
+			$uc =~ s/^lib(.*)\.a/$1/;
+			$uc =~ tr/a-z/A-Z/;
+			$lib_nam{$uc}=$uc;
+			$lib_obj{$uc}.=$libobj." ";
+			}
+		last if ($val eq "FINISHED");
+		$lib="";
+		$libobj="";
+		$dir=$val;
+		}
+
+	if ($key eq "KRB5_INCLUDES")
+		{ $cflags .= " $val";}
+
+	if ($key eq "LIBKRB5")
+		{ $ex_libs .= " $val";}
+
+	if ($key eq "TEST")
+		{ $test.=&var_add($dir,$val); }
+
+	if (($key eq "PROGS") || ($key eq "E_OBJ"))
+		{ $e_exe.=&var_add($dir,$val); }
+
+	if ($key eq "LIB")
+		{
+		$lib=$val;
+		$lib =~ s/^.*\/([^\/]+)$/$1/;
+		}
+
+	if ($key eq "EXHEADER")
+		{ $exheader.=&var_add($dir,$val); }
+
+	if ($key eq "HEADER")
+		{ $header.=&var_add($dir,$val); }
+
+	if ($key eq "LIBOBJ")
+		{ $libobj=&var_add($dir,$val); }
+
+	if (!($_=<IN>))
+		{ $_="RELATIVE_DIRECTORY=FINISHED\n"; }
+	}
+close(IN);
 
 $defs= <<"EOF";
 # This makefile has been automatically generated from the OpenSSL distribution.
@@ -478,57 +538,6 @@ EOF
 printf OUT "  #define DATE \"%s\"\n", scalar gmtime();
 printf OUT "#endif\n";
 close(OUT);
-
-#############################################
-# We parse in input file and 'store' info for later printing.
-open(IN,"<$infile") || die "unable to open $infile:$!\n";
-$_=<IN>;
-for (;;)
-	{
-	chop;
-
-	($key,$val)=/^([^=]+)=(.*)/;
-	if ($key eq "RELATIVE_DIRECTORY")
-		{
-		if ($lib ne "")
-			{
-			$uc=$lib;
-			$uc =~ s/^lib(.*)\.a/$1/;
-			$uc =~ tr/a-z/A-Z/;
-			$lib_nam{$uc}=$uc;
-			$lib_obj{$uc}.=$libobj." ";
-			}
-		last if ($val eq "FINISHED");
-		$lib="";
-		$libobj="";
-		$dir=$val;
-		}
-
-	if ($key eq "TEST")
-		{ $test.=&var_add($dir,$val); }
-
-	if (($key eq "PROGS") || ($key eq "E_OBJ"))
-		{ $e_exe.=&var_add($dir,$val); }
-
-	if ($key eq "LIB")
-		{
-		$lib=$val;
-		$lib =~ s/^.*\/([^\/]+)$/$1/;
-		}
-
-	if ($key eq "EXHEADER")
-		{ $exheader.=&var_add($dir,$val); }
-
-	if ($key eq "HEADER")
-		{ $header.=&var_add($dir,$val); }
-
-	if ($key eq "LIBOBJ")
-		{ $libobj=&var_add($dir,$val); }
-
-	if (!($_=<IN>))
-		{ $_="RELATIVE_DIRECTORY=FINISHED\n"; }
-	}
-close(IN);
 
 # Strip of trailing ' '
 foreach (keys %lib_obj) { $lib_obj{$_}=&clean_up_ws($lib_obj{$_}); }
@@ -935,6 +944,24 @@ sub read_options
 	elsif (/^shlib$/)	{ $shlib=1; }
 	elsif (/^dll$/)		{ $shlib=1; }
 	elsif (/^shared$/)	{ } # We just need to ignore it for now...
+	elsif (/^zlib$/)	{ $xcflags = "-DZLIB $xcflags"; }
+	elsif (/^zlib-dynamic$/){ $xcflags = "-DZLIB_SHARED -DZLIB $xcflags"; }
+	elsif (/^--with-krb5-flavor=(.*)$/)
+		{
+		my $krb5_flavor = $1;
+		if ($krb5_flavor =~ /^force-[Hh]eimdal$/)
+			{
+			$xcflags="-DKRB5_HEIMDAL $xcflags";
+			}
+		elsif ($krb5_flavor =~ /^MIT/i)
+			{
+			$xcflags="-DKRB5_MIT $xcflags";
+		 	if ($krb5_flavor =~ /^MIT[._-]*1[._-]*[01]/i)
+				{
+				$xcflags="-DKRB5_MIT_OLD11 $xcflags"
+				}
+			}
+		}
 	elsif (/^([^=]*)=(.*)$/){ $VARS{$1}=$2; }
 	elsif (/^-[lL].*$/)	{ $l_flags.="$_ "; }
 	elsif ((!/^-help/) && (!/^-h/) && (!/^-\?/) && /^-.*$/)
