@@ -2,6 +2,31 @@
  OpenSSL CHANGES
  _______________
 
+ Changes between 0.9.7k and 0.9.7l  [28 Sep 2006]
+
+  *) Introduce limits to prevent malicious keys being able to
+     cause a denial of service.  (CVE-2006-2940)
+     [Steve Henson, Bodo Moeller]
+
+  *) Fix ASN.1 parsing of certain invalid structures that can result
+     in a denial of service.  (CVE-2006-2937)  [Steve Henson]
+
+  *) Fix buffer overflow in SSL_get_shared_ciphers() function. 
+     (CVE-2006-3738) [Tavis Ormandy and Will Drewry, Google Security Team]
+
+  *) Fix SSL client code which could crash if connecting to a
+     malicious SSLv2 server.  (CVE-2006-4343)
+     [Tavis Ormandy and Will Drewry, Google Security Team]
+
+  *) Change ciphersuite string processing so that an explicit
+     ciphersuite selects this one ciphersuite (so that "AES256-SHA"
+     will no longer include "AES128-SHA"), and any other similar
+     ciphersuite (same bitmap) from *other* protocol versions (so that
+     "RC4-MD5" will still include both the SSL 2.0 ciphersuite and the
+     SSL 3.0/TLS 1.0 ciphersuite).  This is a backport combining
+     changes from 0.9.8b and 0.9.8d.
+     [Bodo Moeller]
+
  Changes between 0.9.7j and 0.9.7k  [05 Sep 2006]
 
   *) Avoid PKCS #1 v1.5 signature attack discovered by Daniel Bleichenbacher
