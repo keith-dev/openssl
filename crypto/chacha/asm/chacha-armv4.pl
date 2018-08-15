@@ -1,4 +1,11 @@
-#!/usr/bin/env perl
+#! /usr/bin/env perl
+# Copyright 2016 The OpenSSL Project Authors. All Rights Reserved.
+#
+# Licensed under the OpenSSL license (the "License").  You may not use
+# this file except in compliance with the License.  You can obtain a copy
+# in the file LICENSE in the source distribution or at
+# https://www.openssl.org/source/license.html
+
 #
 # ====================================================================
 # Written by Andy Polyakov <appro@openssl.org> for the OpenSSL
@@ -28,8 +35,8 @@
 #	20-25% worse;
 
 $flavour = shift;
-if ($flavour=~/^\w[\w\-]*\.\w+$/) { $output=$flavour; undef $flavour; }
-else { while (($output=shift) && ($output!~/^\w[\w\-]*\.\w+$/)) {} }
+if ($flavour=~/\w[\w\-]*\.\w+$/) { $output=$flavour; undef $flavour; }
+else { while (($output=shift) && ($output!~/\w[\w\-]*\.\w+$/)) {} }
 
 if ($flavour && $flavour ne "void") {
     $0 =~ m/(.*[\/\\])[^\/\\]+$/; $dir=$1;
@@ -214,7 +221,7 @@ ChaCha20_ctr32:
 # ifdef	__APPLE__
 	ldr	r4,[r4]
 # endif
-	tst	r4,#1
+	tst	r4,#ARMV7_NEON
 	bne	.LChaCha20_neon
 .Lshort:
 #endif
@@ -440,9 +447,9 @@ $code.=<<___;
 	eorhs	@x[4],@x[4],@t[0]
 	eorhs	@x[5],@x[5],@t[1]
 # ifdef	__thumb2__
-	it	hi
+	 it	ne
 # endif
-	 ldrhi	@t[0],[sp,#4*(32+2)]	@ re-load len
+	 ldrne	@t[0],[sp,#4*(32+2)]	@ re-load len
 # ifdef	__thumb2__
 	itt	hs
 # endif
@@ -584,9 +591,9 @@ ___
 }
 $code.=<<___;
 # ifdef	__thumb2__
-	it	hi
+	it	ne
 # endif
-	ldrhi	@t[0],[sp,#4*(32+2)]		@ re-load len
+	ldrne	@t[0],[sp,#4*(32+2)]		@ re-load len
 # ifdef	__thumb2__
 	it	hs
 # endif
@@ -598,15 +605,15 @@ $code.=<<___;
 
 .Ltail:
 	ldr	r12,[sp,#4*(32+1)]	@ load inp
-	add	@t[2],sp,#4*(0)
+	add	@t[1],sp,#4*(0)
 	ldr	r14,[sp,#4*(32+0)]	@ load out
 
 .Loop_tail:
-	ldrb	@t[0],[@t[2]],#1	@ read buffer on stack
-	ldrb	@t[1],[r12],#1		@ read input
-	subs	@t[3],@t[3],#1
-	eor	@t[0],@t[0],@t[1]
-	strb	@t[0],[r14],#1		@ store output
+	ldrb	@t[2],[@t[1]],#1	@ read buffer on stack
+	ldrb	@t[3],[r12],#1		@ read input
+	subs	@t[0],@t[0],#1
+	eor	@t[3],@t[3],@t[2]
+	strb	@t[3],[r14],#1		@ store output
 	bne	.Loop_tail
 
 .Ldone:
@@ -1120,14 +1127,14 @@ $code.=<<___;
 # endif
 	stmia		@t[0],{@x[0]-@x[7]}
 	 add		@t[2],sp,#4*(0)
-	 sub		@t[3],@t[0],#64*3	@ len-=64*3
+	 sub		@t[3],@t[3],#64*3	@ len-=64*3
 
 .Loop_tail_neon:
 	ldrb		@t[0],[@t[2]],#1	@ read buffer on stack
 	ldrb		@t[1],[r12],#1		@ read input
 	subs		@t[3],@t[3],#1
 	eor		@t[0],@t[0],@t[1]
-	strb		@t[0],[r14],#1		@ store ouput
+	strb		@t[0],[r14],#1		@ store output
 	bne		.Loop_tail_neon
 
 .Ldone_neon:
