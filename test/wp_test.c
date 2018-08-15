@@ -1,1 +1,1 @@
-../crypto/whrlpool/wp_test.c
+openssl-1.0.0t/../crypto/whrlpool/wp_test.c

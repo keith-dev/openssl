@@ -1,1 +1,1 @@
-../crypto/rand/randtest.c
+openssl-1.0.0t/../crypto/rand/randtest.c

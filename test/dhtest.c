@@ -1,1 +1,1 @@
-../crypto/dh/dhtest.c
+openssl-1.0.0t/../crypto/dh/dhtest.c

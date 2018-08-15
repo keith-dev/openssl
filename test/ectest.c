@@ -1,1 +1,1 @@
-../crypto/ec/ectest.c
+openssl-1.0.0t/../crypto/ec/ectest.c

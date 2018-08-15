@@ -1,1 +1,1 @@
-../crypto/rc2/rc2test.c
+openssl-1.0.0t/../crypto/rc2/rc2test.c

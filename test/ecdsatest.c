@@ -1,1 +1,1 @@
-../crypto/ecdsa/ecdsatest.c
+openssl-1.0.0t/../crypto/ecdsa/ecdsatest.c
