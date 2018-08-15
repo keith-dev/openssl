@@ -38,10 +38,14 @@
 #   exclude.
 #
 
+use lib ".";
+use configdata;
+use File::Spec::Functions;
+
 my $debug=0;
 
-my $crypto_num= "util/libeay.num";
-my $ssl_num=    "util/ssleay.num";
+my $crypto_num= catfile($config{sourcedir},"util","libeay.num");
+my $ssl_num=    catfile($config{sourcedir},"util","ssleay.num");
 my $libname;
 
 my $do_update = 0;
@@ -84,6 +88,8 @@ my @known_algorithms = ( "RC2", "RC4", "RC5", "IDEA", "DES", "BF",
                          "CRYPTO_MDEBUG",
 			 # Engines
                          "STATIC_ENGINE", "ENGINE", "HW", "GMP",
+			 # Entropy Gathering
+			 "EGD",
                          # X.509v3 Signed Certificate Timestamps
                          "SCT",
 			 # RFC3779
@@ -126,16 +132,9 @@ foreach (@known_algorithms) {
 # disabled by default
 $disabled_algorithms{"STATIC_ENGINE"} = 1;
 
-my $options="";
-open(IN,"<Makefile") || die "unable to open Makefile!\n";
-while(<IN>) {
-    $options=$1 if (/^OPTIONS=(.*)$/);
-}
-close(IN);
-
 my $zlib;
 
-foreach (@ARGV, split(/ /, $options))
+foreach (@ARGV, split(/ /, $config{options}))
 	{
 	$debug=1 if $_ eq "debug";
 	$W32=1 if $_ eq "32";
@@ -235,10 +234,9 @@ my $ssl="include/openssl/ssl.h";
 $ssl.=" include/openssl/tls1.h";
 $ssl.=" include/openssl/srtp.h";
 
+# We use headers found in include/openssl and include/internal only.
+# The latter is needed so libssl.so/.dll/.exe can link properly.
 my $crypto ="include/openssl/crypto.h";
-$crypto.=" crypto/include/internal/cryptlib.h";
-$crypto.=" crypto/include/internal/chacha.h"; # unless $no_chacha;
-$crypto.=" crypto/include/internal/poly1305.h"; # unless $no_poly1305;
 $crypto.=" include/internal/o_dir.h";
 $crypto.=" include/internal/o_str.h";
 $crypto.=" include/openssl/des.h" ; # unless $no_des;
@@ -294,7 +292,6 @@ $crypto.=" include/openssl/comp.h" ; # unless $no_comp;
 $crypto.=" include/openssl/ocsp.h";
 $crypto.=" include/openssl/ui.h";
 #$crypto.=" include/openssl/store.h";
-$crypto.=" include/openssl/pqueue.h";
 $crypto.=" include/openssl/cms.h";
 $crypto.=" include/openssl/jpake.h";
 $crypto.=" include/openssl/srp.h";
@@ -387,8 +384,9 @@ sub do_defs
 
 	foreach $file (split(/\s+/,$symhacksfile." ".$files))
 		{
-		print STDERR "DEBUG: starting on $file:\n" if $debug;
-		open(IN,"<$file") || die "unable to open $file:$!\n";
+		my $fn = catfile($config{sourcedir},$file);
+		print STDERR "DEBUG: starting on $fn:\n" if $debug;
+		open(IN,"<$fn") || die "unable to open $fn:$!\n";
 		my $line = "", my $def= "";
 		my %tag = (
 			(map { $_ => 0 } @known_platforms),
@@ -460,7 +458,7 @@ sub do_defs
 			if($parens > 0) {
 				#Inside a DEPRECATEDIN
 				$stored_multiline .= $_;
-				chomp $stored_multiline;
+				$stored_multiline =~ s|\R$||; # Better chomp
 				print STDERR "DEBUG: Continuing multiline DEPRECATEDIN: $stored_multiline\n" if $debug;
 				$parens = count_parens($stored_multiline);
 				if ($parens == 0) {
@@ -481,9 +479,7 @@ sub do_defs
 			}
 
 			if (/\\$/) {
-				chomp; # remove eol
-				chop; # remove ending backslash
-				$line = $_;
+				$line = $`; # keep what was before the backslash
 				next;
 			}
 
@@ -500,7 +496,7 @@ sub do_defs
 				$cpp++ if /^#\s*if/;
 				$cpp-- if /^#\s*endif/;
 				next;
-	    		}
+			}
 			$cpp = 1 if /^#.*ifdef.*cplusplus/;
 
 			s/{[^{}]*}//gs;                      # ignore {} blocks
@@ -868,7 +864,7 @@ sub do_defs
 							\@current_algorithms);
 					} else {
 						$stored_multiline = $_;
-						chomp $stored_multiline;
+						$stored_multiline =~ s|\R$||;
 						print STDERR "DEBUG: Found multiline DEPRECATEDIN starting with: $stored_multiline\n" if $debug;
 						next;
 					}
@@ -1031,7 +1027,8 @@ sub reduce_platforms
 	return $ret;
 }
 
-sub info_string {
+sub info_string
+{
 	(my $symbol, my $exist, my $platforms, my $kind, my $algorithms) = @_;
 
 	my %a = defined($algorithms) ?
@@ -1049,13 +1046,13 @@ sub info_string {
 	return $ret;
 }
 
-sub maybe_add_info {
+sub maybe_add_info
+{
 	(my $name, *nums, my @symbols) = @_;
 	my $sym;
 	my $new_info = 0;
 	my %syms=();
 
-	print STDERR "Updating $name info\n";
 	foreach $sym (@symbols) {
 		(my $s, my $i) = split /\\/, $sym;
 		if (defined($nums{$s})) {
@@ -1079,12 +1076,11 @@ sub maybe_add_info {
 		}
 	}
 	if ($new_info) {
-		print STDERR "$new_info old symbols got an info update\n";
+		print STDERR "$name: $new_info old symbols have updated info\n";
 		if (!$do_rewrite) {
 			print STDERR "You should do a rewrite to fix this.\n";
 		}
 	} else {
-		print STDERR "No old symbols needed info update\n";
 	}
 }
 
@@ -1174,15 +1170,9 @@ sub print_test_file
 	}
 }
 
-sub get_version {
-   local *MF;
-   my $v = '?';
-   open MF, 'Makefile' or return $v;
-   while (<MF>) {
-     $v = $1, last if /^VERSION=(.*?)\s*$/;
-   }
-   close MF;
-   return $v;
+sub get_version
+{
+   return $config{version};
 }
 
 sub print_def_file
@@ -1232,12 +1222,8 @@ EOF
                 }
         elsif ($VMS)
                 {
-                my $libref = $name eq "ssl" ? "LIBCRYPTO.EXE /SHARE" : "";
                 print OUT <<"EOF";
-IDENTIFICATION="V$version"
 CASE_SENSITIVE=YES
-LIB$libname.OLB /LIBRARY
-$libref
 SYMBOL_VECTOR=(-
 EOF
                 $symvtextcount = 16; # length of "SYMBOL_VECTOR=(-"
@@ -1304,34 +1290,35 @@ EOF
 						print OUT "        $s2;\n";
                                         } elsif ($VMS) {
                                             while(++$prevnum < $n) {
-                                                my $symline="SPARE, SPARE -";
-                                                if ($symvtextcount + length($symline) + 1 > 1024) {
+                                                my $symline=" ,SPARE -\n  ,SPARE -\n";
+                                                if ($symvtextcount + length($symline) - 2 > 1024) {
                                                     print OUT ")\nSYMBOL_VECTOR=(-\n";
                                                     $symvtextcount = 16; # length of "SYMBOL_VECTOR=(-"
                                                 }
-                                                if ($symvtextcount > 16) {
-                                                    $symline = ",".$symline;
+                                                if ($symvtextcount == 16) {
+                                                    # Take away first comma
+                                                    $symline =~ s/,//;
                                                 }
-                                                print OUT "    $symline\n";
-                                                $symvtextcount += length($symline);
+                                                print OUT $symline;
+                                                $symvtextcount += length($symline) - 2;
                                             }
                                             (my $s_uc = $s) =~ tr/a-z/A-Z/;
                                             my $symtype=
                                                 $v ? "DATA" : "PROCEDURE";
                                             my $symline=
                                                 ($s_uc ne $s
-                                                 ? "$s_uc/$s=$symtype, $s=$symtype"
-                                                 : "$s=$symtype, SPARE")
-                                                ." -";
-                                            if ($symvtextcount + length($symline) + 1 > 1024) {
+                                                 ? " ,$s_uc/$s=$symtype -\n  ,$s=$symtype -\n"
+                                                 : " ,$s=$symtype -\n  ,SPARE -\n");
+                                            if ($symvtextcount + length($symline) - 2 > 1024) {
                                                 print OUT ")\nSYMBOL_VECTOR=(-\n";
                                                 $symvtextcount = 16; # length of "SYMBOL_VECTOR=(-"
                                             }
-                                            if ($symvtextcount > 16) {
-                                                $symline = ",".$symline;
+                                            if ($symvtextcount == 16) {
+                                                # Take away first comma
+                                                $symline =~ s/,//;
                                             }
-                                            print OUT "    $symline\n";
-                                            $symvtextcount += length($symline);
+                                            print OUT $symline;
+                                            $symvtextcount += length($symline) - 2;
 					} elsif($v && !$OS2) {
 						printf OUT "    %s%-39s @%-8d DATA\n",
 								($W32)?"":"_",$s2,$n;
@@ -1375,7 +1362,7 @@ sub load_numbers
 
 	open(IN,"<$name") || die "unable to open $name:$!\n";
 	while (<IN>) {
-		chop;
+		s|\R$||;        # Better chomp
 		s/#.*$//;
 		next if /^\s*$/;
 		@a=split;
@@ -1441,8 +1428,6 @@ sub rewrite_numbers
 	(*OUT,$name,*nums,@symbols)=@_;
 	my $thing;
 
-	print STDERR "Rewriting $name\n";
-
 	my @r = grep(/^\w+(\{[0-9]+\})?\\.*?:.*?:\w+\(\w+\)/,@symbols);
 	my $r; my %r; my %rsyms;
 	foreach $r (@r) {
@@ -1491,8 +1476,6 @@ sub update_numbers
 
 	($basevers, $vers) = get_openssl_version();
 
-	print STDERR "Updating $name numbers\n";
-
 	my @r = grep(/^\w+(\{[0-9]+\})?\\.*?:.*?:\w+\(\w+\)/,@symbols);
 	my $r; my %r; my %rsyms;
 	foreach $r (@r) {
@@ -1522,9 +1505,9 @@ sub update_numbers
 		}
 	}
 	if($new_syms) {
-		print STDERR "$new_syms New symbols added\n";
+		print STDERR "$name: Added $new_syms new symbols\n";
 	} else {
-		print STDERR "No New symbols Added\n";
+		print STDERR "$name: No new symbols added\n";
 	}
 }
 
@@ -1565,12 +1548,13 @@ sub count_parens
 #version
 sub get_openssl_version()
 {
-	open (IN, "include/openssl/opensslv.h") || die "Can't open opensslv.h";
+	my $fn = catfile($config{sourcedir},"include","openssl","opensslv.h");
+	open (IN, "$fn") || die "Can't open opensslv.h";
 
 	while(<IN>) {
 		if (/OPENSSL_VERSION_TEXT\s+"OpenSSL (\d\.\d\.)(\d[a-z]*)(-| )/) {
 			my $suffix = $2;
-			my $baseversion = $1 =~ s/\./_/gr;
+			(my $baseversion = $1) =~ s/\./_/g;
 			close IN;
 			return ($baseversion."0", $baseversion.$suffix);
 		}

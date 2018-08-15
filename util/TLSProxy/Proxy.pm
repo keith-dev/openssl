@@ -65,6 +65,9 @@ use TLSProxy::ServerHello;
 use TLSProxy::ServerKeyExchange;
 use TLSProxy::NewSessionTicket;
 
+my $have_IPv6 = 0;
+my $IP_factory;
+
 sub new
 {
     my $class = shift;
@@ -94,6 +97,43 @@ sub new
         record_list => [],
         message_list => [],
     };
+
+    # IO::Socket::IP is on the core module list, IO::Socket::INET6 isn't.
+    # However, IO::Socket::INET6 is older and is said to be more widely
+    # deployed for the moment, and may have less bugs, so we try the latter
+    # first, then fall back on the code modules.  Worst case scenario, we
+    # fall back to IO::Socket::INET, only supports IPv4.
+    eval {
+        require IO::Socket::INET6;
+        my $s = IO::Socket::INET6->new(
+            LocalAddr => "::1",
+            LocalPort => 0,
+            Listen=>1,
+            );
+        $s or die "\n";
+        $s->close();
+    };
+    if ($@ eq "") {
+        $IP_factory = sub { IO::Socket::INET6->new(@_); };
+        $have_IPv6 = 1;
+    } else {
+        eval {
+            require IO::Socket::IP;
+            my $s = IO::Socket::IP->new(
+                LocalAddr => "::1",
+                LocalPort => 0,
+                Listen=>1,
+                );
+            $s or die "\n";
+            $s->close();
+        };
+        if ($@ eq "") {
+            $IP_factory = sub { IO::Socket::IP->new(@_); };
+            $have_IPv6 = 1;
+        } else {
+            $IP_factory = sub { IO::Socket::INET->new(@_); };
+        }
+    }
 
     return bless $self, $class;
 }
@@ -139,7 +179,7 @@ sub start
     $pid = fork();
     if ($pid == 0) {
         open(STDOUT, ">", File::Spec->devnull())
-            or die "Failed to redirect stdout";
+            or die "Failed to redirect stdout: $!";
         open(STDERR, ">&STDOUT");
         my $execcmd = $self->execute
             ." s_server -no_comp -rev -engine ossltest -accept "
@@ -168,8 +208,10 @@ sub clientstart
     }
 
     # Create the Proxy socket
-    my $proxy_sock = new IO::Socket::INET(
-        LocalHost   => $self->proxy_addr,
+    my $proxaddr = $self->proxy_addr;
+    $proxaddr =~ s/[\[\]]//g; # Remove [ and ]
+    my $proxy_sock = $IP_factory->(
+        LocalHost   => $proxaddr,
         LocalPort   => $self->proxy_port,
         Proto       => "tcp",
         Listen      => SOMAXCONN,
@@ -179,14 +221,14 @@ sub clientstart
     if ($proxy_sock) {
         print "Proxy started on port ".$self->proxy_port."\n";
     } else {
-        die "Failed creating proxy socket\n";
+        die "Failed creating proxy socket (".$proxaddr.",".$self->proxy_port."): $!\n";
     }
 
     if ($self->execute) {
         my $pid = fork();
         if ($pid == 0) {
             open(STDOUT, ">", File::Spec->devnull())
-                or die "Failed to redirect stdout";
+                or die "Failed to redirect stdout: $!";
             open(STDERR, ">&STDOUT");
             my $execcmd = "echo test | ".$self->execute
                  ." s_client -engine ossltest -connect "
@@ -202,8 +244,8 @@ sub clientstart
     }
 
     # Wait for incoming connection from client
-    my $client_sock = $proxy_sock->accept() 
-        or die "Failed accepting incoming connection\n";
+    my $client_sock = $proxy_sock->accept()
+        or die "Failed accepting incoming connection: $!\n";
 
     print "Connection opened\n";
 
@@ -213,11 +255,14 @@ sub clientstart
     #We loop over this a few times because sometimes s_server can take a while
     #to start up
     do {
-        $server_sock = new IO::Socket::INET(
-            PeerAddr => $self->server_addr,
+        my $servaddr = $self->server_addr;
+        $servaddr =~ s/[\[\]]//g; # Remove [ and ]
+        $server_sock = $IP_factory->(
+            PeerAddr => $servaddr,
             PeerPort => $self->server_port,
+            MultiHomed => 1,
             Proto => 'tcp'
-        ); 
+        );
 
         $retry--;
         if (!$server_sock) {
@@ -225,7 +270,7 @@ sub clientstart
                 #Sleep for a short while
                 select(undef, undef, undef, 0.1);
             } else {
-                die "Failed to start up server\n";
+                die "Failed to start up server (".$servaddr.",".$self->server_port."): $!\n";
             }
         }
     } while (!$server_sock);
@@ -352,6 +397,11 @@ sub end
 {
     my $self = shift;
     return $self->{end};
+}
+sub supports_IPv6
+{
+    my $self = shift;
+    return $have_IPv6;
 }
 
 #Read/write accessors

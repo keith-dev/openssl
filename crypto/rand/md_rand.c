@@ -1,4 +1,3 @@
-/* crypto/rand/md_rand.c */
 /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
  * All rights reserved.
  *
@@ -324,7 +323,7 @@ static int rand_add(const void *buf, int num, double add)
             /*
              * Parallel threads may interfere with this, but always each byte
              * of the new state is the XOR of some previous value of its and
-             * local_md (itermediate values may be lost). Alway using locking
+             * local_md (intermediate values may be lost). Alway using locking
              * could hurt performance more than necessary given that
              * conflicts occur only when the total seeding is longer than the
              * random state.
@@ -552,18 +551,6 @@ static int rand_bytes(unsigned char *buf, int num, int pseudo)
         if (!MD_Update(m, (unsigned char *)&(md_c[0]), sizeof(md_c)))
             goto err;
 
-#ifndef PURIFY                  /* purify complains */
-        /*
-         * The following line uses the supplied buffer as a small source of
-         * entropy: since this buffer is often uninitialised it may cause
-         * programs such as purify or valgrind to complain. So for those
-         * builds it is not used: the removal of such a small source of
-         * entropy has negligible impact on security.
-         */
-        if (!MD_Update(m, buf, j))
-            goto err;
-#endif
-
         k = (st_idx + MD_DIGEST_LENGTH / 2) - st_num;
         if (k > 0) {
             if (!MD_Update(m, &(state[st_idx]), MD_DIGEST_LENGTH / 2 - k))
@@ -699,7 +686,8 @@ static int rand_status(void)
 
 #if (defined(__i386)   || defined(__i386__)   || defined(_M_IX86) || \
      defined(__x86_64) || defined(__x86_64__) || \
-     defined(_M_AMD64) || defined (_M_X64)) && defined(OPENSSL_CPUID_OBJ)
+     defined(_M_AMD64) || defined (_M_X64)) && defined(OPENSSL_CPUID_OBJ) \
+     && !defined(OPENSSL_NO_RDRAND)
 
 # define RDRAND_CALLS    4
 

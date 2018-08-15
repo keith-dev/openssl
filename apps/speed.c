@@ -94,16 +94,8 @@
 # include <signal.h>
 #endif
 
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32)
 # include <windows.h>
-# if defined(__CYGWIN__) && !defined(_WIN32)
-  /*
-   * <windows.h> should define _WIN32, which normally is mutually exclusive
-   * with __CYGWIN__, but if it didn't...
-   */
-#  define _WIN32
-  /* this is done because Cygwin alarm() fails sometimes. */
-# endif
 #endif
 
 #include <openssl/bn.h>
@@ -129,7 +121,6 @@
 # include <openssl/md5.h>
 #endif
 #include <openssl/hmac.h>
-#include <openssl/evp.h>
 #include <openssl/sha.h>
 #ifndef OPENSSL_NO_RMD160
 # include <openssl/ripemd.h>
@@ -171,8 +162,6 @@
 # include <openssl/ec.h>
 #endif
 #include <openssl/modes.h>
-
-#include <openssl/bn.h>
 
 #ifndef HAVE_FORK
 # if defined(OPENSSL_SYS_VMS) || defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_OS2) || defined(OPENSSL_SYS_NETWARE)
@@ -1082,6 +1071,7 @@ int speed_main(int argc, char **argv)
         c[D_SHA256][i] = c[D_SHA256][0] * 4 * l0 / l1;
         c[D_SHA512][i] = c[D_SHA512][0] * 4 * l0 / l1;
         c[D_WHIRLPOOL][i] = c[D_WHIRLPOOL][0] * 4 * l0 / l1;
+        c[D_GHASH][i] = c[D_GHASH][0] * 4 * l0 / l1;
 
         l0 = (long)lengths[i - 1];
 

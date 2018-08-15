@@ -11,7 +11,7 @@ MAKEFILE=	Makefile
 PERL=		perl
 RM=		rm -f
 
-PEX_LIBS=
+PLIB_LDFLAG=
 EX_LIBS= 
 EXE_EXT= 
 
@@ -50,7 +50,7 @@ SRC	= \
 	genpkey.c genrsa.c nseq.c ocsp.c passwd.c pkcs12.c pkcs7.c pkcs8.c \
 	pkey.c pkeyparam.c pkeyutl.c prime.c rand.c req.c rsa.c rsautl.c \
 	s_client.c s_server.c s_time.c sess_id.c smime.c speed.c spkac.c \
-	srp.c ts.c verify.c version.c x509.c
+	srp.c ts.c verify.c version.c x509.c rehash.c
 
 EXE_OBJ	= openssl.o $(OBJ) $(EXTRA_OBJ) $(RAND_OBJ)
 EXE_SRC = openssl.c $(SRC) $(EXTRA_SRC) $(RAND_SRC)
@@ -63,9 +63,11 @@ ALL=    $(GENERAL) $(EXE_SRC) $(HEADER)
 top:
 	@(cd ..; $(MAKE) DIRS=$(DIR) all)
 
-all:	exe
+all:	exe scripts
 
 exe:	$(EXE)
+
+scripts: $(SCRIPTS)
 
 openssl-vms.cnf: openssl.cnf
 	$(PERL) $(TOP)/VMS/VMSify-conf.pl < openssl.cnf > openssl-vms.cnf
@@ -78,52 +80,38 @@ install:
 	@set -e; for i in $(EXE); \
 	do  \
 	(echo installing $$i; \
-	 cp $$i $(INSTALL_PREFIX)$(INSTALLTOP)/bin/$$i.new; \
-	 chmod 755 $(INSTALL_PREFIX)$(INSTALLTOP)/bin/$$i.new; \
-	 mv -f $(INSTALL_PREFIX)$(INSTALLTOP)/bin/$$i.new $(INSTALL_PREFIX)$(INSTALLTOP)/bin/$$i ); \
+	 cp $$i $(DESTDIR)$(INSTALLTOP)/bin/$$i.new; \
+	 chmod 755 $(DESTDIR)$(INSTALLTOP)/bin/$$i.new; \
+	 mv -f $(DESTDIR)$(INSTALLTOP)/bin/$$i.new $(DESTDIR)$(INSTALLTOP)/bin/$$i ); \
 	 done;
 	@set -e; for i in $(SCRIPTS); \
 	do  \
 	(echo installing $$i; \
-	 cp $$i $(INSTALL_PREFIX)$(OPENSSLDIR)/misc/$$i.new; \
-	 chmod 755 $(INSTALL_PREFIX)$(OPENSSLDIR)/misc/$$i.new; \
-	 mv -f $(INSTALL_PREFIX)$(OPENSSLDIR)/misc/$$i.new $(INSTALL_PREFIX)$(OPENSSLDIR)/misc/$$i ); \
+	 cp $$i $(DESTDIR)$(OPENSSLDIR)/misc/$$i.new; \
+	 chmod 755 $(DESTDIR)$(OPENSSLDIR)/misc/$$i.new; \
+	 mv -f $(DESTDIR)$(OPENSSLDIR)/misc/$$i.new $(DESTDIR)$(OPENSSLDIR)/misc/$$i ); \
 	 done
-	@cp openssl.cnf $(INSTALL_PREFIX)$(OPENSSLDIR)/openssl.cnf.new; \
-	chmod 644 $(INSTALL_PREFIX)$(OPENSSLDIR)/openssl.cnf.new; \
-	mv -f  $(INSTALL_PREFIX)$(OPENSSLDIR)/openssl.cnf.new $(INSTALL_PREFIX)$(OPENSSLDIR)/openssl.cnf
+	@cp openssl.cnf $(DESTDIR)$(OPENSSLDIR)/openssl.cnf.new; \
+	chmod 644 $(DESTDIR)$(OPENSSLDIR)/openssl.cnf.new; \
+	mv -f  $(DESTDIR)$(OPENSSLDIR)/openssl.cnf.new $(DESTDIR)$(OPENSSLDIR)/openssl.cnf
 
 uninstall:
 	@set -e; for i in $(EXE); \
 	do  \
-		echo $(RM) $(INSTALL_PREFIX)$(INSTALLTOP)/bin/$$i; \
-		$(RM) $(INSTALL_PREFIX)$(INSTALLTOP)/bin/$$i; \
+		echo $(RM) $(DESTDIR)$(INSTALLTOP)/bin/$$i; \
+		$(RM) $(DESTDIR)$(INSTALLTOP)/bin/$$i; \
 	done;
 	@set -e; for i in $(SCRIPTS); \
 	do  \
-		echo $(RM) $(INSTALL_PREFIX)$(OPENSSLDIR)/misc/$$i; \
-		$(RM) $(INSTALL_PREFIX)$(OPENSSLDIR)/misc/$$i; \
+		echo $(RM) $(DESTDIR)$(OPENSSLDIR)/misc/$$i; \
+		$(RM) $(DESTDIR)$(OPENSSLDIR)/misc/$$i; \
 	done
-	$(RM) $(INSTALL_PREFIX)$(OPENSSLDIR)/openssl.cnf
+	$(RM) $(DESTDIR)$(OPENSSLDIR)/openssl.cnf
 
-tags:
-	ctags $(EXE_SRC) $(HEADER)
+generate: openssl-vms.cnf progs.h
 
-tests:
-
-lint:
-	echo nope >fluff
-
-update: openssl-vms.cnf local_depend
-
-depend: local_depend
-	@if [ -z "$(THIS)" ]; then $(MAKE) -f $(TOP)/Makefile reflect THIS=$@; fi
-local_depend:
-	@[ -z "$(THIS)" ] || $(MAKEDEPEND) -- $(CFLAG) $(INCLUDES) $(DEPFLAG) -- $(EXE_SRC)
-
-dclean:
-	$(PERL) -pe 'if (/^# DO NOT DELETE THIS LINE/) {print; exit(0);}' $(MAKEFILE) >Makefile.new
-	mv -f Makefile.new $(MAKEFILE)
+depend:
+	$(TOP)/util/domd $(CFLAG) $(INCLUDES) $(DEPFLAG) -- $(EXE_SRC)
 
 clean:
 	rm -f *.o *.obj *.dll lib tags core .pure .nfs* *.old *.bak fluff $(EXE)
@@ -135,7 +123,7 @@ $(DLIBSSL):
 $(DLIBCRYPTO):
 	(cd ..; $(MAKE) build_libcrypto)
 
-$(EXE): progs.h $(EXE_OBJ) $(DLIBCRYPTO) $(DLIBSSL)
+$(EXE): $(EXE_OBJ) $(DLIBCRYPTO) $(DLIBSSL)
 	$(RM) $(EXE)
 	shlib_target=; if [ -n "$(SHARED_LIBS)" ]; then \
 		shlib_target="$(SHLIB_TARGET)"; \
@@ -143,12 +131,17 @@ $(EXE): progs.h $(EXE_OBJ) $(DLIBCRYPTO) $(DLIBSSL)
 	LIBRARIES="$(LIBSSL) $(LIBCRYPTO)" ; \
 	$(MAKE) -f $(TOP)/Makefile.shared -e \
 		APPNAME=$(EXE) OBJECTS="$(EXE_OBJ)" \
-		LIBDEPS="$(PEX_LIBS) $$LIBRARIES $(EX_LIBS)" \
+		LDFLAG="$(LDFLAG)" \
+		LIBDEPS="$(PLIB_LDFLAG) $$LIBRARIES $(EX_LIBS)" \
 		link_app.$${shlib_target}
 
-progs.h: progs.pl Makefile
+progs.h: progs.pl Makefile.in
 	$(RM) progs.h
-	$(PERL) progs.pl $(COMMANDS) >progs.h
-	$(RM) openssl.o
+	$(PERL) progs.pl $(EXE_SRC) > progs.h
+
+CA.pl: CA.pl.in
+	$(PERL) -I$(TOP) -Mconfigdata $(TOP)/util/dofile.pl -oapps/Makefile CA.pl.in > CA.pl.new
+	mv CA.pl.new CA.pl
+
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.

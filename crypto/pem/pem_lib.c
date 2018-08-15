@@ -1,4 +1,3 @@
-/* crypto/pem/pem_lib.c */
 /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
  * All rights reserved.
  *
@@ -489,7 +488,7 @@ int PEM_do_header(EVP_CIPHER_INFO *cipher, unsigned char *data, long *plen,
 int PEM_get_EVP_CIPHER_INFO(char *header, EVP_CIPHER_INFO *cipher)
 {
     const EVP_CIPHER *enc = NULL;
-    char *p, c;
+    char *dekinfostart, c;
     char **header_pp = &header;
 
     cipher->cipher = NULL;
@@ -522,7 +521,7 @@ int PEM_get_EVP_CIPHER_INFO(char *header, EVP_CIPHER_INFO *cipher)
     }
     header += 10;
 
-    p = header;
+    dekinfostart = header;
     for (;;) {
         c = *header;
 #ifndef CHARSET_EBCDIC
@@ -536,9 +535,8 @@ int PEM_get_EVP_CIPHER_INFO(char *header, EVP_CIPHER_INFO *cipher)
         header++;
     }
     *header = '\0';
-    cipher->cipher = enc = EVP_get_cipherbyname(p);
+    cipher->cipher = enc = EVP_get_cipherbyname(dekinfostart);
     *header = c;
-    header++;
 
     if (enc == NULL) {
         PEMerr(PEM_F_PEM_GET_EVP_CIPHER_INFO, PEM_R_UNSUPPORTED_ENCRYPTION);

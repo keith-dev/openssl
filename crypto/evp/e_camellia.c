@@ -1,4 +1,3 @@
-/* crypto/evp/e_camellia.c */
 /* ====================================================================
  * Copyright (c) 2006 The OpenSSL Project.  All rights reserved.
  *
@@ -54,7 +53,10 @@
  */
 
 #include <openssl/opensslconf.h>
-#ifndef OPENSSL_NO_CAMELLIA
+#ifdef OPENSSL_NO_CAMELLIA
+NON_EMPTY_TRANSLATION_UNIT
+#else
+
 # include <openssl/evp.h>
 # include <openssl/err.h>
 # include <string.h>
@@ -119,10 +121,10 @@ static int cmll_t4_init_key(EVP_CIPHER_CTX *ctx, const unsigned char *key,
                             const unsigned char *iv, int enc)
 {
     int ret, mode, bits;
-    EVP_CAMELLIA_KEY *dat = (EVP_CAMELLIA_KEY *) ctx->cipher_data;
+    EVP_CAMELLIA_KEY *dat = (EVP_CAMELLIA_KEY *) EVP_CIPHER_CTX_cipher_data(ctx);
 
-    mode = ctx->cipher->flags & EVP_CIPH_MODE;
-    bits = ctx->key_len * 8;
+    mode = EVP_CIPHER_CTX_mode(ctx);
+    bits = EVP_CIPHER_CTX_key_length(ctx) * 8;
 
     cmll_t4_set_key(key, bits, &dat->ks);
 
@@ -403,10 +405,4 @@ static int camellia_ctr_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
 BLOCK_CIPHER_generic_pack(NID_camellia, 128, 0)
     BLOCK_CIPHER_generic_pack(NID_camellia, 192, 0)
     BLOCK_CIPHER_generic_pack(NID_camellia, 256, 0)
-#else
-
-# ifdef PEDANTIC
-static void *dummy = &dummy;
-# endif
-
 #endif

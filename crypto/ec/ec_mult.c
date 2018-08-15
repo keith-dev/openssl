@@ -1,4 +1,3 @@
-/* crypto/ec/ec_mult.c */
 /*
  * Originally written by Bodo Moeller and Nils Larsch for the OpenSSL project.
  */
@@ -68,7 +67,7 @@
 #include "ec_lcl.h"
 
 /*
- * This file implements the wNAF-based interleaving multi-exponentation method
+ * This file implements the wNAF-based interleaving multi-exponentiation method
  * (<URL:http://www.informatik.tu-darmstadt.de/TI/Mitarbeiter/moeller.html#multiexp>);
  * for multiplication with precomputation, we use wNAF splitting
  * (<URL:http://www.informatik.tu-darmstadt.de/TI/Mitarbeiter/moeller.html#fastexp>).
@@ -555,7 +554,7 @@ int ec_wNAF_precompute_mult(EC_GROUP *group, BN_CTX *ctx)
     const EC_POINT *generator;
     EC_POINT *tmp_point = NULL, *base = NULL, **var;
     BN_CTX *new_ctx = NULL;
-    BIGNUM *order;
+    const BIGNUM *order;
     size_t i, bits, w, pre_points_per_block, blocksize, numblocks, num;
     EC_POINT **points = NULL;
     EC_PRE_COMP *pre_comp;
@@ -579,11 +578,9 @@ int ec_wNAF_precompute_mult(EC_GROUP *group, BN_CTX *ctx)
     }
 
     BN_CTX_start(ctx);
-    order = BN_CTX_get(ctx);
-    if (order == NULL)
-        goto err;
 
-    if (!EC_GROUP_get_order(group, order, ctx))
+    order = EC_GROUP_get0_order(group);
+    if (order == NULL)
         goto err;
     if (BN_is_zero(order)) {
         ECerr(EC_F_EC_WNAF_PRECOMPUTE_MULT, EC_R_UNKNOWN_ORDER);

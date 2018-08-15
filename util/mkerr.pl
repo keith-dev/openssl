@@ -384,7 +384,6 @@ foreach $lib (keys %csrc)
 	my $hfile = $hinc{$lib};
 	my $cfile = $csrc{$lib};
 	if(!$fnew{$lib} && !$rnew{$lib}) {
-		print STDERR "$lib:\t\tNo new error codes\n";
 		next unless $rebuild;
 	} else {
 		print STDERR "$lib:\t\t$fnew{$lib} New Functions,";
@@ -557,7 +556,7 @@ EOF
 	if (open(IN,"<$cfile")) {
 		my $line = "";
 		while (<IN>) {
-			chomp;
+			s|\R$||; # Better chomp
 			$_ = $line . $_;
 			$line = "";
 			if (/{ERR_(FUNC|REASON)\(/) {
@@ -603,7 +602,6 @@ EOF
 	open (OUT,">$cfile") || die "Can't open $cfile for writing";
 
 	print OUT <<"EOF";
-/* $cfile */
 /* ====================================================================
  * Copyright (c) 1999-$year The OpenSSL Project.  All rights reserved.
  *

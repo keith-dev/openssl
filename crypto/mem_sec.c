@@ -13,10 +13,11 @@
 #include <openssl/crypto.h>
 #include <e_os.h>
 
+#include <string.h>
+
 #if defined(OPENSSL_SYS_LINUX) || defined(OPENSSL_SYS_UNIX)
 # define IMPLEMENTED
 # include <stdlib.h>
-# include <string.h>
 # include <assert.h>
 # include <unistd.h>
 # include <sys/types.h>
@@ -108,6 +109,15 @@ void *CRYPTO_secure_malloc(size_t num, const char *file, int line)
 #else
     return CRYPTO_malloc(num, file, line);
 #endif /* IMPLEMENTED */
+}
+
+void *CRYPTO_secure_zalloc(size_t num, const char *file, int line)
+{
+    void *ret = CRYPTO_secure_malloc(num, file, line);
+
+    if (ret != NULL)
+        memset(ret, 0, num);
+    return ret;
 }
 
 void CRYPTO_secure_free(void *ptr)

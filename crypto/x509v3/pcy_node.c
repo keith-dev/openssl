@@ -1,4 +1,3 @@
-/* pcy_node.c */
 /*
  * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL project
  * 2004.
@@ -152,8 +151,7 @@ X509_POLICY_NODE *level_add_node(X509_POLICY_LEVEL *level,
 
  node_error:
     policy_node_free(node);
-    return 0;
-
+    return NULL;
 }
 
 void policy_node_free(X509_POLICY_NODE *node)

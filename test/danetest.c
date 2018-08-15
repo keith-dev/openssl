@@ -1,4 +1,3 @@
-/* danetest.c */
 /* ====================================================================
  * Copyright (c) 2015 The OpenSSL Project.  All rights reserved.
  *
@@ -65,6 +64,8 @@
 #endif
 
 #include "../e_os.h"
+
+#define _UC(c) ((unsigned char)(c))
 
 static const char *progname;
 
@@ -230,7 +231,7 @@ static char *read_to_eol(FILE *f)
     }
 
     /* Trim trailing whitespace */
-    while (n > 0 && isspace(buf[n-1]))
+    while (n > 0 && isspace(_UC(buf[n-1])))
         buf[--n] = '\0';
 
     return buf;
@@ -253,9 +254,9 @@ static ossl_ssize_t hexdecode(const char *in, void *result)
     for (byte = 0; *in; ++in) {
         char c;
 
-        if (isspace(*in))
+        if (isspace(_UC(*in)))
             continue;
-        c = tolower(*in);
+        c = tolower(_UC(*in));
         if ('0' <= c && c <= '9') {
             byte |= c - '0';
         } else if ('a' <= c && c <= 'f') {
@@ -292,11 +293,11 @@ static ossl_ssize_t checked_uint8(const char *in, void *out)
     e = restore_errno();
 
     if (((v == LONG_MIN || v == LONG_MAX) && e == ERANGE) ||
-        endp == cp || !isspace(*endp) ||
+        endp == cp || !isspace(_UC(*endp)) ||
         v != (*(uint8_t *)result = (uint8_t) v)) {
         return -1;
     }
-    for (cp = endp; isspace(*cp); ++cp)
+    for (cp = endp; isspace(_UC(*cp)); ++cp)
         continue;
     return cp - in;
 }
@@ -352,7 +353,7 @@ static int tlsa_import_rr(SSL *ssl, const char *rrdata)
 static int allws(const char *cp)
 {
     while (*cp)
-        if (!isspace(*cp++))
+        if (!isspace(_UC(*cp++)))
             return 0;
     return 1;
 }
@@ -414,7 +415,15 @@ static int test_tlsafile(SSL_CTX *ctx, const char *basename,
         ok = verify_chain(ssl, chain);
         sk_X509_pop_free(chain, X509_free);
         err = SSL_get_verify_result(ssl);
+        /*
+         * Peek under the hood, normally TLSA match data is hidden when
+         * verification fails, we can obtain any suppressed data by setting the
+         * verification result to X509_V_OK before looking.
+         */
+        SSL_set_verify_result(ssl, X509_V_OK);
         mdpth = SSL_get0_dane_authority(ssl, NULL, NULL);
+        /* Not needed any more, but lead by example and put the error back. */
+        SSL_set_verify_result(ssl, err);
         SSL_free(ssl);
 
         if (ok < 0) {
@@ -472,9 +481,12 @@ int main(int argc, char *argv[])
     CAfile = argv[2];
     tlsafile = argv[3];
 
+    bio_err = BIO_new_fp(stderr, BIO_NOCLOSE | BIO_FP_TEXT);
+
     p = getenv("OPENSSL_DEBUG_MEMORY");
     if (p != NULL && strcmp(p, "on") == 0)
         CRYPTO_set_mem_debug(1);
+    CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ON);
 
     f = fopen(tlsafile, "r");
     if (f == NULL) {
@@ -483,10 +495,6 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    bio_err = BIO_new_fp(stderr, BIO_NOCLOSE | BIO_FP_TEXT);
-
-    SSL_library_init();
-    SSL_load_error_strings();
 
     ctx = SSL_CTX_new(TLS_client_method());
     if (SSL_CTX_dane_enable(ctx) <= 0) {
@@ -518,16 +526,9 @@ end:
     (void) fclose(f);
     SSL_CTX_free(ctx);
 
-#ifndef OPENSSL_NO_ENGINE
-    ENGINE_cleanup();
-#endif
-    CONF_modules_unload(1);
-    CRYPTO_cleanup_all_ex_data();
-    ERR_free_strings();
-    ERR_remove_thread_state(NULL);
-    EVP_cleanup();
 #ifndef OPENSSL_NO_CRYPTO_MDEBUG
-    CRYPTO_mem_leaks(bio_err);
+    if (CRYPTO_mem_leaks(bio_err) <= 0)
+        ret = 1;
 #endif
     BIO_free(bio_err);
     EXIT(ret);

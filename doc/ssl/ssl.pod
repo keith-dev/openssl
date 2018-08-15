@@ -13,9 +13,6 @@ The OpenSSL B<ssl> library implements the Secure Sockets Layer (SSL v2/v3) and
 Transport Layer Security (TLS v1) protocols. It provides a rich API which is
 documented here.
 
-At first the library must be initialized; see
-L<SSL_library_init(3)>.
-
 Then an B<SSL_CTX> object is created as a framework to establish
 TLS/SSL enabled connections (see L<SSL_CTX_new(3)>).
 Various options regarding certificates, algorithms etc. can be set
@@ -233,6 +230,8 @@ protocol context defined in the B<SSL_CTX> structure.
 =item long B<SSL_CTX_need_tmp_RSA>(SSL_CTX *ctx);
 
 =item SSL_CTX *B<SSL_CTX_new>(const SSL_METHOD *meth);
+
+=item void SSL_CTX_up_ref(SSL_CTX *ctx);
 
 =item int B<SSL_CTX_remove_session>(SSL_CTX *ctx, SSL_SESSION *c);
 
@@ -558,9 +557,9 @@ fresh handle for each connection.
 
 =item STACK *B<SSL_load_client_CA_file>(char *file);
 
-=item void B<SSL_load_error_strings>(void);
-
 =item SSL *B<SSL_new>(SSL_CTX *ctx);
+
+=item void SSL_up_ref(SSL *s);
 
 =item long B<SSL_num_renegotiations>(SSL *ssl);
 
@@ -738,7 +737,6 @@ L<SSL_get_rbio(3)>,
 L<SSL_get_session(3)>,
 L<SSL_get_verify_result(3)>,
 L<SSL_get_version(3)>,
-L<SSL_library_init(3)>,
 L<SSL_load_client_CA_file(3)>,
 L<SSL_new(3)>,
 L<SSL_pending(3)>,

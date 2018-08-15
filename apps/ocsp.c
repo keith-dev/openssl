@@ -521,7 +521,7 @@ int ocsp_main(int argc, char **argv)
             goto end;
     }
 
-    if (rsignfile && !rdb) {
+    if (rsignfile) {
         if (!rkeyfile)
             rkeyfile = rsignfile;
         rsigner = load_cert(rsignfile, FORMAT_PEM,
@@ -533,9 +533,8 @@ int ocsp_main(int argc, char **argv)
         rca_cert = load_cert(rca_filename, FORMAT_PEM,
                              NULL, NULL, "CA certificate");
         if (rcertfile) {
-            rother = load_certs(rcertfile, FORMAT_PEM,
-                                NULL, NULL, "responder other certificates");
-            if (!rother)
+            if (!load_certs(rcertfile, &rother, FORMAT_PEM, NULL, NULL,
+                            "responder other certificates"))
                 goto end;
         }
         rkey = load_key(rkeyfile, FORMAT_PEM, 0, NULL, NULL,
@@ -578,9 +577,8 @@ int ocsp_main(int argc, char **argv)
             goto end;
         }
         if (sign_certfile) {
-            sign_other = load_certs(sign_certfile, FORMAT_PEM,
-                                    NULL, NULL, "signer certificates");
-            if (!sign_other)
+            if (!load_certs(sign_certfile, &sign_other, FORMAT_PEM, NULL, NULL,
+                            "signer certificates"))
                 goto end;
         }
         key = load_key(keyfile, FORMAT_PEM, 0, NULL, NULL,
@@ -702,9 +700,8 @@ int ocsp_main(int argc, char **argv)
     if (vpmtouched)
         X509_STORE_set1_param(store, vpm);
     if (verify_certfile) {
-        verify_other = load_certs(verify_certfile, FORMAT_PEM,
-                                  NULL, NULL, "validator certificate");
-        if (!verify_other)
+        if (!load_certs(verify_certfile, &verify_other, FORMAT_PEM, NULL, NULL,
+                        "validator certificate"))
             goto end;
     }
 
@@ -1068,7 +1065,7 @@ static int urldecode(char *p)
     for (; *p; p++) {
         if (*p != '%')
             *out++ = *p;
-        else if (isxdigit(p[1]) && isxdigit(p[2])) {
+        else if (isxdigit(_UC(p[1])) && isxdigit(_UC(p[2]))) {
             *out++ = (app_hex(p[1]) << 4) | app_hex(p[2]);
             p += 2;
         }

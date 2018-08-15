@@ -1,4 +1,3 @@
-/* crypto/cryptlib.c */
 /* ====================================================================
  * Copyright (c) 1998-2006 The OpenSSL Project.  All rights reserved.
  *
@@ -164,7 +163,8 @@ static const char *const lock_names[CRYPTO_NUM_LOCKS] = {
     "comp",
     "fips",
     "fips2",
-#if CRYPTO_NUM_LOCKS != 41
+    "init",
+#if CRYPTO_NUM_LOCKS != 42
 # error "Inconsistency between crypto.h and cryptlib.c"
 #endif
 };
@@ -305,7 +305,7 @@ void CRYPTO_destroy_dynlockid(int i)
     pointer = sk_CRYPTO_dynlock_value(dyn_locks, i);
     if (pointer != NULL) {
         --pointer->references;
-#ifdef REF_CHECK
+#ifdef REF_DEBUG
         if (pointer->references < 0) {
             OPENSSL_showfatal("CRYPTO_destroy_dynlockid, bad reference count\n");
             abort();

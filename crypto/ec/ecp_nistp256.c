@@ -1,4 +1,3 @@
-/* crypto/ec/ecp_nistp256.c */
 /*
  * Written by Adam Langley (Google) for the OpenSSL project
  */
@@ -27,7 +26,9 @@
  */
 
 #include <openssl/opensslconf.h>
-#ifndef OPENSSL_NO_EC_NISTP_64_GCC_128
+#ifdef OPENSSL_NO_EC_NISTP_64_GCC_128
+NON_EMPTY_TRANSLATION_UNIT
+#else
 
 # include <stdint.h>
 # include <string.h>
@@ -1227,7 +1228,7 @@ static void copy_small_conditional(felem out, const smallfelem in, limb mask)
 }
 
 /*-
- * point_add calcuates (x1, y1, z1) + (x2, y2, z2)
+ * point_add calculates (x1, y1, z1) + (x2, y2, z2)
  *
  * The method is taken from:
  *   http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-3.html#addition-add-2007-bl,
@@ -2208,8 +2209,7 @@ int ec_GFp_nistp256_precompute_mult(EC_GROUP *group, BN_CTX *ctx)
      */
     if (0 == EC_POINT_cmp(group, generator, group->generator, ctx)) {
         memcpy(pre->g_pre_comp, gmul, sizeof(pre->g_pre_comp));
-        ret = 1;
-        goto err;
+        goto done;
     }
     if ((!BN_to_felem(x_tmp, group->generator->X)) ||
         (!BN_to_felem(y_tmp, group->generator->Y)) ||
@@ -2296,6 +2296,7 @@ int ec_GFp_nistp256_precompute_mult(EC_GROUP *group, BN_CTX *ctx)
     }
     make_points_affine(31, &(pre->g_pre_comp[0][1]), tmp_smallfelems);
 
+ done:
     SETPRECOMP(group, nistp256, pre);
     pre = NULL;
     ret = 1;
@@ -2312,6 +2313,4 @@ int ec_GFp_nistp256_have_precompute_mult(const EC_GROUP *group)
 {
     return HAVEPRECOMP(group, nistp256);
 }
-#else
-static void *dummy = &dummy;
 #endif

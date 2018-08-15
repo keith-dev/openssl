@@ -1,4 +1,3 @@
-/* ssl/ssl_err.c */
 /* ====================================================================
  * Copyright (c) 1999-2016 The OpenSSL Project.  All rights reserved.
  *
@@ -85,7 +84,6 @@ static ERR_STRING_DATA SSL_str_functs[] = {
     {ERR_FUNC(SSL_F_DTLS1_GET_MESSAGE_FRAGMENT), "DTLS1_GET_MESSAGE_FRAGMENT"},
     {ERR_FUNC(SSL_F_DTLS1_HANDLE_TIMEOUT), "dtls1_handle_timeout"},
     {ERR_FUNC(SSL_F_DTLS1_HEARTBEAT), "dtls1_heartbeat"},
-    {ERR_FUNC(SSL_F_DTLS1_LISTEN), "dtls1_listen"},
     {ERR_FUNC(SSL_F_DTLS1_PREPROCESS_FRAGMENT), "dtls1_preprocess_fragment"},
     {ERR_FUNC(SSL_F_DTLS1_PROCESS_OUT_OF_SEQ_MESSAGE),
      "DTLS1_PROCESS_OUT_OF_SEQ_MESSAGE"},
@@ -97,6 +95,7 @@ static ERR_STRING_DATA SSL_str_functs[] = {
     {ERR_FUNC(SSL_F_DTLS1_SEND_HELLO_VERIFY_REQUEST),
      "DTLS1_SEND_HELLO_VERIFY_REQUEST"},
     {ERR_FUNC(SSL_F_DTLS1_WRITE_APP_DATA_BYTES), "dtls1_write_app_data_bytes"},
+    {ERR_FUNC(SSL_F_DTLSV1_LISTEN), "DTLSv1_listen"},
     {ERR_FUNC(SSL_F_DTLS_CONSTRUCT_CHANGE_CIPHER_SPEC),
      "dtls_construct_change_cipher_spec"},
     {ERR_FUNC(SSL_F_DTLS_CONSTRUCT_HELLO_VERIFY_REQUEST),
@@ -104,6 +103,7 @@ static ERR_STRING_DATA SSL_str_functs[] = {
     {ERR_FUNC(SSL_F_DTLS_GET_REASSEMBLED_MESSAGE),
      "dtls_get_reassembled_message"},
     {ERR_FUNC(SSL_F_DTLS_PROCESS_HELLO_VERIFY), "dtls_process_hello_verify"},
+    {ERR_FUNC(SSL_F_OPENSSL_INIT_SSL), "OPENSSL_init_ssl"},
     {ERR_FUNC(SSL_F_READ_STATE_MACHINE), "read_state_machine"},
     {ERR_FUNC(SSL_F_SSL3_ADD_CERT_TO_BUF), "SSL3_ADD_CERT_TO_BUF"},
     {ERR_FUNC(SSL_F_SSL3_CALLBACK_CTRL), "ssl3_callback_ctrl"},
@@ -278,13 +278,11 @@ static ERR_STRING_DATA SSL_str_functs[] = {
     {ERR_FUNC(SSL_F_TLS1_EXPORT_KEYING_MATERIAL),
      "tls1_export_keying_material"},
     {ERR_FUNC(SSL_F_TLS1_GET_CURVELIST), "tls1_get_curvelist"},
-    {ERR_FUNC(SSL_F_TLS1_HEARTBEAT), "tls1_heartbeat"},
     {ERR_FUNC(SSL_F_TLS1_PREPARE_CLIENTHELLO_TLSEXT),
      "TLS1_PREPARE_CLIENTHELLO_TLSEXT"},
     {ERR_FUNC(SSL_F_TLS1_PREPARE_SERVERHELLO_TLSEXT),
      "TLS1_PREPARE_SERVERHELLO_TLSEXT"},
     {ERR_FUNC(SSL_F_TLS1_PRF), "tls1_PRF"},
-    {ERR_FUNC(SSL_F_TLS1_PROCESS_HEARTBEAT), "tls1_process_heartbeat"},
     {ERR_FUNC(SSL_F_TLS1_SETUP_KEY_BLOCK), "tls1_setup_key_block"},
     {ERR_FUNC(SSL_F_TLS1_SET_SERVER_SIGALGS), "tls1_set_server_sigalgs"},
     {ERR_FUNC(SSL_F_TLS_CLIENT_KEY_EXCHANGE_POST_WORK),
@@ -577,6 +575,7 @@ static ERR_STRING_DATA SSL_str_reasons[] = {
     {ERR_REASON(SSL_R_SERVERHELLO_TLSEXT), "serverhello tlsext"},
     {ERR_REASON(SSL_R_SESSION_ID_CONTEXT_UNINITIALIZED),
      "session id context uninitialized"},
+    {ERR_REASON(SSL_R_SHUTDOWN_WHILE_IN_INIT), "shutdown while in init"},
     {ERR_REASON(SSL_R_SIGNATURE_ALGORITHMS_ERROR),
      "signature algorithms error"},
     {ERR_REASON(SSL_R_SIGNATURE_FOR_NON_SIGNING_CERTIFICATE),

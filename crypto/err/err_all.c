@@ -1,4 +1,3 @@
-/* crypto/err/err_all.c */
 /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
  * All rights reserved.
  *
@@ -57,6 +56,7 @@
  */
 
 #include <stdio.h>
+#include <internal/err.h>
 #include <openssl/asn1.h>
 #include <openssl/bn.h>
 #ifndef OPENSSL_NO_EC
@@ -104,7 +104,7 @@
 #include <internal/ct_int.h>
 #include <openssl/async.h>
 
-void ERR_load_crypto_strings(void)
+void err_load_crypto_strings_intern(void)
 {
 #ifdef OPENSSL_FIPS
     FIPS_set_error_callbacks(ERR_put_error, ERR_add_error_vdata);

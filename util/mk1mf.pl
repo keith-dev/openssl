@@ -9,8 +9,9 @@
 
 use Cwd;
 
-$INSTALLTOP="/usr/local/ssl";
+$INSTALLTOP="/usr/local";
 $OPENSSLDIR="/usr/local/ssl";
+$ENGINESDIR="/usr/local/lib/engines";
 $OPTIONS="";
 $ssl_version="";
 $banner="\t\@echo Building OpenSSL";
@@ -47,10 +48,12 @@ my %mf_import = (
 	OPTIONS        => \$OPTIONS,
 	INSTALLTOP     => \$INSTALLTOP,
 	OPENSSLDIR     => \$OPENSSLDIR,
+	ENGINESDIR     => \$ENGINESDIR,
 	PLATFORM       => \$mf_platform,
 	CC             => \$mf_cc,
 	CFLAG	       => \$mf_cflag,
-	DEPFLAG	       => \$mf_depflag,
+	CFLAG_Q	       => \$mf_cflag_q,
+        DEPFLAG        => \$mf_depflag,
 	CPUID_OBJ      => \$mf_cpuid_asm,
 	BN_ASM	       => \$mf_bn_asm,
 	DES_ENC	       => \$mf_des_asm,
@@ -140,7 +143,11 @@ and [options] can be one of
 	no-srp					- No SRP
 	no-ec					- No EC
 	no-engine				- No engine
+	no-egd					- No EGD
 	no-hw					- No hw
+	no-async				- No Async (use NULL)
+	no-autoalginit				- Don't auto load algorithms in libcrypto
+	no-autoerrinit				- Don't auto load error strings for libcrypto or libssl
 	nasm 					- Use NASM for x86 asm
 	nw-nasm					- Use NASM x86 asm for NetWare
 	nw-mwasm				- Use Metrowerks x86 asm for NetWare
@@ -181,6 +188,7 @@ $tmp_def="tmp";
 
 $perl="perl" unless defined $perl;
 $mkdir="-mkdir" unless defined $mkdir;
+$mv="mv" unless defined $mv;
 
 ($ssl,$crypto)=("ssl","crypto");
 $ranlib="echo ranlib";
@@ -294,11 +302,15 @@ $cflags.=" -DOPENSSL_NO_EC"   if $no_ec;
 $cflags.=" -DOPENSSL_NO_GOST" if $no_gost;
 $cflags.=" -DOPENSSL_NO_ENGINE"   if $no_engine;
 $cflags.=" -DOPENSSL_NO_HW"   if $no_hw;
+$cflags.=" -DOPENSSL_NO_ASYNC" if $no_async;
+$cflags.=" -DOPENSSL_NO_AUTOALGINIT" if $no_autoalginit;
+$cflags.=" -DOPENSSL_NO_AUTOERRINIT" if $no_autoerrinit;
 $cflags.=" -DOPENSSL_FIPS"    if $fips;
 $cflags.=" -DOPENSSL_NO_JPAKE"    if $no_jpake;
 $cflags.=" -DOPENSSL_NO_EC2M"    if $no_ec2m;
 $cflags.= " -DZLIB" if $zlib_opt;
 $cflags.= " -DZLIB_SHARED" if $zlib_opt == 2;
+$cflags.=" -DOPENSSL_PIC" if $shlib;
 
 if ($no_static_engine)
 	{
@@ -542,8 +554,10 @@ if ($fips)
 			{
 			open (IN, "util/fipslib_path.txt") || fipslib_error();
 			$fipslibdir = <IN>;
-			chomp $fipslibdir;
 			close IN;
+			$fipslibdir = "" unless defined($fipslibdir);
+			$fipslibdir =~ s{\R$}{};
+			fipslib_error() if ($fipslibdir eq "");
 			}
 		fips_check_files($fipslibdir,
 				"fipscanister.lib", "fipscanister.lib.sha1",
@@ -606,6 +620,15 @@ EOF
 
 my $asm_def = $orig_platform eq 'copy' ? "" : "ASM=$bin_dir$asm";
 
+$cflags =~ s/\((ENGINESDIR|OPENSSLDIR)\)/\(${1}_QQ\)/g;
+(my $cflags_q = $cflags) =~ s/([\\"])/\\$1/g;
+(my $INSTALLTOP_Q = $INSTALLTOP) =~ s/([\\"])/\\$1/g;
+(my $INSTALLTOP_QQ = $INSTALLTOP_Q) =~ s/\\/\\\\/g;
+(my $OPENSSLDIR_Q = $OPENSSLDIR) =~ s/([\\"])/\\$1/g;
+(my $OPENSSLDIR_QQ = $OPENSSLDIR_Q) =~ s/\\/\\\\/g;
+(my $ENGINESDIR_Q = $ENGINESDIR) =~ s/([\\"])/\\$1/g;
+(my $ENGINESDIR_QQ = $ENGINESDIR_Q) =~ s/\\/\\\\/g;
+
 $defs= <<"EOF";
 # N.B. You MUST use -j on FreeBSD.
 # This makefile has been automatically generated from the OpenSSL distribution.
@@ -627,12 +650,17 @@ $defs .= $preamble if defined $preamble;
 
 $defs.= <<"EOF";
 INSTALLTOP=$INSTALLTOP
+INSTALLTOP_QQ=$INSTALLTOP_QQ
 OPENSSLDIR=$OPENSSLDIR
+OPENSSLDIR_QQ=$OPENSSLDIR_QQ
+ENGINESDIR=$ENGINESDIR
+ENGINESDIR_QQ=$ENGINESDIR_QQ
 
 # Set your compiler options
 PLATFORM=$platform
 CC=$bin_dir${cc}
 CFLAG=$cflags
+CFLAG_Q=$cflags_q
 APP_CFLAG=$app_cflag
 LIB_CFLAG=$lib_cflag
 SHLIB_CFLAG=$shl_cflag
@@ -645,7 +673,7 @@ EX_LIBS=$ex_libs
 # The OpenSSL directory
 SRC_D=$src_dir
 
-LINK=$link
+LINK_CMD=$link
 LFLAGS=$lflags
 RSC=$rsc
 FIPSLINK=\$(PERL) util${o}fipslink.pl
@@ -660,6 +688,7 @@ PERLASM_SCHEME=$mf_perlasm_scheme
 CP=$cp
 CP2=$cp2
 RM=$rm
+MV=$mv
 RANLIB=$ranlib
 MKDIR=$mkdir
 MKLIB=$bin_dir$mklib
@@ -750,9 +779,10 @@ headers: \$(HEADER)
 
 lib: \$(LIBS_DEP) \$(E_SHLIB)
 
-exe: apps testapps
-apps: \$(BIN_D)$o\$(E_EXE)$exep
+exe: apps tools testapps
+apps: \$(BIN_D)$o\$(E_EXE)$exep \$(BIN_D)${o}CA.pl
 testapps: \$(T_EXE)
+tools: \$(BIN_D)${o}c_rehash
 
 install: all
 	\$(MKDIR) \"\$(INSTALLTOP)\"
@@ -760,6 +790,7 @@ install: all
 	\$(MKDIR) \"\$(INSTALLTOP)${o}include\"
 	\$(MKDIR) \"\$(INSTALLTOP)${o}include${o}openssl\"
 	\$(MKDIR) \"\$(INSTALLTOP)${o}lib\"
+	\$(MKDIR) \"\$(INSTALLTOP)${o}lib${o}engines\"
 $extra_install
 
 clean:
@@ -777,44 +808,14 @@ reallyclean:
 
 EOF
 
-$rules .= &do_rehash_rule("rehash.time", "certs apps");
+$rules .= &do_rehash_rule("rehash.time", "certs/demo apps tools");
 $rules .= &do_test_rule("test", "rehash.time", "run_tests.pl");
 
-my $platform_cpp_symbol = "MK1MF_PLATFORM_$platform";
-$platform_cpp_symbol =~ s/-/_/g;
-if (open(IN,"crypto/buildinf.h"))
-	{
-	# Remove entry for this platform in existing file buildinf.h.
-
-	my $old_buildinf_h = "";
-	while (<IN>)
-		{
-		if (/^\#ifdef $platform_cpp_symbol$/)
-			{
-			while (<IN>) { last if (/^\#endif/); }
-			}
-		else
-			{
-			$old_buildinf_h .= $_;
-			}
-		}
-	close(IN);
-
-	open(OUT,">crypto/buildinf.h") || die "Can't open buildinf.h";
-	print OUT $old_buildinf_h;
-	close(OUT);
-	}
-
-open (OUT,">>crypto/buildinf.h") || die "Can't open buildinf.h";
-printf OUT <<EOF;
-#ifdef $platform_cpp_symbol
-  /* auto-generated/updated by util/mk1mf.pl for crypto/cversion.c */
-  #define CFLAGS "compiler: $cc $cflags"
-  #define PLATFORM "$platform"
+$rules .= <<"EOF";
+crypto${o}buildinf.h : MINFO
+	\$(PERL) util${o}mkbuildinf.pl "\$(CC) \$(CFLAG_Q)" "\$(PLATFORM)" > crypto${o}buildinf.h
+$(OBJ_D)${o}cversion${obj} : crypto${o}buildinf.h
 EOF
-printf OUT "  #define DATE \"%s\"\n", scalar gmtime();
-printf OUT "#endif\n";
-close(OUT);
 
 # Strip off trailing ' '
 foreach (keys %lib_obj) { $lib_obj{$_}=&clean_up_ws($lib_obj{$_}); }
@@ -997,6 +998,9 @@ if ($fips)
 
 $rules.=&do_link_rule("\$(BIN_D)$o\$(E_EXE)$exep","\$(E_OBJ)","\$(LIBS_DEP)","\$(L_LIBS) \$(EX_LIBS)", ($fips && !$shlib) ? 2 : 0);
 
+$rules.=&do_dofile_rule("\$(BIN_D)","c_rehash","tools/c_rehash.in");
+$rules.=&do_dofile_rule("\$(BIN_D)","CA.pl","apps/CA.pl.in");
+
 print $defs;
 
 if ($platform eq "linux-elf") {
@@ -1032,7 +1036,6 @@ sub var_add
 	return("") if $no_dsa  && $dir =~ /\/dsa/;
 	return("") if $no_dh   && $dir =~ /\/dh/;
 	return("") if $no_ec   && $dir =~ /\/ec/;
-	return("") if $no_gost   && $dir =~ /\/ccgost/;
 	return("") if $no_cms  && $dir =~ /\/cms/;
 	return("") if $no_jpake  && $dir =~ /\/jpake/;
 	return("") if !$fips   && $dir =~ /^fips/;
@@ -1159,7 +1162,7 @@ sub do_defs
 		elsif ($var eq "SSLOBJ")
 			{ $ret.="\$(OBJ_D)\\\$(SSL).res "; }
 		}
-	chomp($ret);
+	chomp($ret);            # Does this actually do something? /RL
 	$ret.="\n\n";
 	return($ret);
 	}
@@ -1261,7 +1264,6 @@ sub cc_compile_target
 	local($target,$source,$ex_flags)=@_;
 	local($ret);
 	
-	$ex_flags.=" -DMK1MF_BUILD -D$platform_cpp_symbol" if ($source =~ /cversion/);
 	$target =~ s/\//$o/g if $o ne "/";
 	$source =~ s/\//$o/g if $o ne "/";
 	$ret ="$target: \$(SRC_D)$o$source\n\t";
@@ -1327,6 +1329,7 @@ sub do_copy_rule
 	local($to,$files,$p)=@_;
 	local($ret,$_,$n,$pp);
 	
+
 	$files =~ s/\//$o/g if $o ne '/';
 	foreach (split(/\s+/,$files))
 		{
@@ -1337,6 +1340,18 @@ sub do_copy_rule
 		$ret.="$to${o}$n$pp: \$(SRC_D)$o$_$pp\n\t\$(PERL) \$(SRC_D)${o}util${o}copy-if-different.pl \"\$(SRC_D)$o$_$pp\" \"$to${o}$n$pp\"\n\n";
 		}
 	return($ret);
+	}
+
+sub do_dofile_rule
+	{
+	(my $to, my $file, my $tmpl) = @_;
+
+	$file =~ s|/|$o|g if $o ne '/';
+	return <<"EOF";
+$to${o}$file: $tmpl
+	\$(PERL) "-I." "-Mconfigdata" util/dofile.pl "$tmpl" > "$to${o}$file.new"
+	\$(MV) "$to${o}$file.new" "$to${o}$file"
+EOF
 	}
 
 # Options picked up from the OPTIONS line in the top level Makefile
@@ -1390,7 +1405,12 @@ sub read_options
 		"no-ec" => \$no_ec,
 		"no-gost" => \$no_gost,
 		"no-engine" => \$no_engine,
+		"no-egd" => 0,
+		"no-heartbeats" => 0,
 		"no-hw" => \$no_hw,
+		"no-async" => \$no_async,
+		"no-autoalginit" => \$no_autoalginit,
+		"no-autoerrinit" => \$no_autoerrinit,
 		"just-ssl" =>
 			[\$no_rc2, \$no_idea, \$no_des, \$no_bf, \$no_cast,
 			  \$no_md2, \$no_mdc2, \$no_dsa, \$no_dh,
@@ -1418,6 +1438,7 @@ sub read_options
 		"no-deprecated" => 0,
 		"no-ocb" => 0,
 		"no-crypto-mdebug" => 0,
+		"no-crypto-mdebug-backtrace" => 0,
 		"fips" => \$fips,
 		"fipscanisterbuild" => [\$fips, \$fipscanisterbuild],
 		"fipscanisteronly" => [\$fips, \$fipscanisterbuild, \$fipscanisteronly],

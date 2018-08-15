@@ -36,26 +36,27 @@ lib:	$(LIBOBJ)
 	$(RANLIB) $(LIB) || echo Never mind.
 	@touch lib
 
+poly1305-sparcv9.S:	asm/poly1305-sparcv9.pl
+	$(PERL) asm/poly1305-sparcv9.pl > $@
+poly1305-x86.s:		asm/poly1305-x86.pl
+	$(PERL) asm/poly1305-x86.pl $(PERLASM_SCHEME) $(CFLAGS) $(PROCESSOR) > $@
+poly1305-x86_64.s:	asm/poly1305-x86_64.pl
+	$(PERL) asm/poly1305-x86_64.pl $(PERLASM_SCHEME) > $@
+poly1305-ppc.s:		asm/poly1305-ppc.pl
+	$(PERL) asm/poly1305-ppc.pl $(PERLASM_SCHEME) $@
+poly1305-ppcfp.s:	asm/poly1305-ppcfp.pl
+	$(PERL) asm/poly1305-ppcfp.pl $(PERLASM_SCHEME) $@
+
+poly1305-%.S:	asm/poly1305-%.pl;	$(PERL) $< $(PERLASM_SCHEME) $@
+
+poly1305-armv4.o:	poly1305-armv4.S
+poly1305-armv8.o:	poly1305-armv8.S
+
 files:
 	$(PERL) $(TOP)/util/files.pl Makefile >> $(TOP)/MINFO
 
-tags:
-	ctags $(SRC)
-
-tests:
-
-lint:
-	lint -DLINT $(INCLUDES) $(SRC)>fluff
-
-update:	depend
-
 depend:
-	@[ -n "$(MAKEDEPEND)" ] # should be set by upper Makefile...
-	$(MAKEDEPEND) -- $(CFLAG) $(INCLUDES) $(DEPFLAG) -- $(PROGS) $(LIBSRC)
-
-dclean:
-	$(PERL) -pe 'if (/^# DO NOT DELETE THIS LINE/) {print; exit(0);}' $(MAKEFILE) >Makefile.new
-	mv -f Makefile.new $(MAKEFILE)
+	$(TOP)/util/domd $(CFLAG) $(INCLUDES) $(DEPFLAG) -- $(PROGS) $(LIBSRC)
 
 clean:
 	rm -f *.s *.o *.obj lib tags core .pure .nfs* *.old *.bak fluff

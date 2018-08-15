@@ -1,4 +1,3 @@
-/* ssl/statem/statem_lib.c */
 /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
  * All rights reserved.
  *
@@ -600,43 +599,32 @@ int tls_get_message_body(SSL *s, unsigned long *len)
     return 1;
 }
 
-int ssl_cert_type(X509 *x, EVP_PKEY *pkey)
+int ssl_cert_type(X509 *x, EVP_PKEY *pk)
 {
-    EVP_PKEY *pk;
-    int ret = -1, i;
+    if (pk == NULL &&
+        (pk = X509_get0_pubkey(x)) == NULL)
+        return -1;
 
-    if (pkey == NULL)
-        pk = X509_get_pubkey(x);
-    else
-        pk = pkey;
-    if (pk == NULL)
-        goto err;
-
-    i = pk->type;
-    if (i == EVP_PKEY_RSA) {
-        ret = SSL_PKEY_RSA_ENC;
-    } else if (i == EVP_PKEY_DSA) {
-        ret = SSL_PKEY_DSA_SIGN;
-    }
+    switch (EVP_PKEY_id(pk)) {
+    default:
+        return -1;
+    case EVP_PKEY_RSA:
+        return SSL_PKEY_RSA_ENC;
+    case EVP_PKEY_DSA:
+        return SSL_PKEY_DSA_SIGN;
 #ifndef OPENSSL_NO_EC
-    else if (i == EVP_PKEY_EC) {
-        ret = SSL_PKEY_ECC;
-    }
+    case EVP_PKEY_EC:
+        return SSL_PKEY_ECC;
 #endif
 #ifndef OPENSSL_NO_GOST
-    else if (i == NID_id_GostR3410_2001) {
-        ret = SSL_PKEY_GOST01;
-    } else if (i == NID_id_GostR3410_2012_256) {
-        ret = SSL_PKEY_GOST12_256;
-    } else if (i == NID_id_GostR3410_2012_512) {
-        ret = SSL_PKEY_GOST12_512;
-    }
+    case NID_id_GostR3410_2001:
+        return SSL_PKEY_GOST01;
+    case NID_id_GostR3410_2012_256:
+        return SSL_PKEY_GOST12_256;
+    case NID_id_GostR3410_2012_512:
+        return SSL_PKEY_GOST12_512;
 #endif
-
- err:
-    if (!pkey)
-        EVP_PKEY_free(pk);
-    return (ret);
+    }
 }
 
 int ssl_verify_alarm_type(long type)
@@ -727,11 +715,25 @@ typedef struct {
 #endif
 
 static const version_info tls_version_table[] = {
+#ifndef OPENSSL_NO_TLS1_2
     { TLS1_2_VERSION, TLSv1_2_client_method, TLSv1_2_server_method },
+#else
+    { TLS1_2_VERSION, NULL, NULL },
+#endif
+#ifndef OPENSSL_NO_TLS1_1
     { TLS1_1_VERSION, TLSv1_1_client_method, TLSv1_1_server_method },
+#else
+    { TLS1_1_VERSION, NULL, NULL },
+#endif
+#ifndef OPENSSL_NO_TLS1
     { TLS1_VERSION, TLSv1_client_method, TLSv1_server_method },
+#else
+    { TLS1_VERSION, NULL, NULL },
+#endif
 #ifndef OPENSSL_NO_SSL3
     { SSL3_VERSION, SSLv3_client_method, SSLv3_server_method },
+#else
+    { SSL3_VERSION, NULL, NULL },
 #endif
     { 0, NULL, NULL },
 };
@@ -741,8 +743,16 @@ static const version_info tls_version_table[] = {
 #endif
 
 static const version_info dtls_version_table[] = {
+#ifndef OPENSSL_NO_DTLS1_2
     { DTLS1_2_VERSION, DTLSv1_2_client_method, DTLSv1_2_server_method },
+#else
+    { DTLS1_2_VERSION, NULL, NULL },
+#endif
+#ifndef OPENSSL_NO_DTLS1
     { DTLS1_VERSION, DTLSv1_client_method, DTLSv1_server_method },
+#else
+    { DTLS1_VERSION, NULL, NULL },
+#endif
     { 0, NULL, NULL },
 };
 

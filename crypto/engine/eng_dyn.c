@@ -1,4 +1,3 @@
-/* crypto/engine/eng_dyn.c */
 /*
  * Written by Geoff Thorpe (geoff@geoffthorpe.net) for the OpenSSL project
  * 2001.
@@ -59,6 +58,7 @@
 
 #include "eng_int.h"
 #include <openssl/dso.h>
+#include <openssl/crypto.h>
 
 /*
  * Shared libraries implementing ENGINEs for use by the "dynamic" ENGINE
@@ -231,6 +231,8 @@ static int dynamic_set_data_ctx(ENGINE *e, dynamic_data_ctx **ctx)
      * If we lost the race to set the context, c is non-NULL and *ctx is the
      * context of the thread that won.
      */
+    if (c)
+        sk_OPENSSL_STRING_free(c->dirs);
     OPENSSL_free(c);
     return 1;
 }
@@ -293,7 +295,7 @@ static ENGINE *engine_dynamic(void)
     return ret;
 }
 
-void ENGINE_load_dynamic(void)
+void engine_load_dynamic_internal(void)
 {
     ENGINE *toadd = engine_dynamic();
     if (!toadd)
@@ -315,7 +317,7 @@ void ENGINE_load_dynamic(void)
 static int dynamic_init(ENGINE *e)
 {
     /*
-     * We always return failure - the "dyanamic" engine itself can't be used
+     * We always return failure - the "dynamic" engine itself can't be used
      * for anything.
      */
     return 0;

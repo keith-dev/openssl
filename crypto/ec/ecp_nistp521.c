@@ -1,4 +1,3 @@
-/* crypto/ec/ecp_nistp521.c */
 /*
  * Written by Adam Langley (Google) for the OpenSSL project
  */
@@ -27,7 +26,9 @@
  */
 
 #include <openssl/opensslconf.h>
-#ifndef OPENSSL_NO_EC_NISTP_64_GCC_128
+#ifdef OPENSSL_NO_EC_NISTP_64_GCC_128
+NON_EMPTY_TRANSLATION_UNIT
+#else
 
 # ifndef OPENSSL_SYS_VMS
 #  include <stdint.h>
@@ -1033,7 +1034,7 @@ static void felem_contract(felem out, const felem in)
  * coordinates */
 
 /*-
- * point_double calcuates 2*(x_in, y_in, z_in)
+ * point_double calculates 2*(x_in, y_in, z_in)
  *
  * The method is taken from:
  *   http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-3.html#doubling-dbl-2001-b
@@ -1149,7 +1150,7 @@ static void copy_conditional(felem out, const felem in, limb mask)
 }
 
 /*-
- * point_add calcuates (x1, y1, z1) + (x2, y2, z2)
+ * point_add calculates (x1, y1, z1) + (x2, y2, z2)
  *
  * The method is taken from
  *   http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-3.html#addition-add-2007-bl,
@@ -2032,8 +2033,7 @@ int ec_GFp_nistp521_precompute_mult(EC_GROUP *group, BN_CTX *ctx)
      */
     if (0 == EC_POINT_cmp(group, generator, group->generator, ctx)) {
         memcpy(pre->g_pre_comp, gmul, sizeof(pre->g_pre_comp));
-        ret = 1;
-        goto err;
+        goto done;
     }
     if ((!BN_to_felem(pre->g_pre_comp[1][0], group->generator->X)) ||
         (!BN_to_felem(pre->g_pre_comp[1][1], group->generator->Y)) ||
@@ -2091,6 +2091,7 @@ int ec_GFp_nistp521_precompute_mult(EC_GROUP *group, BN_CTX *ctx)
     }
     make_points_affine(15, &(pre->g_pre_comp[1]), tmp_felems);
 
+ done:
     SETPRECOMP(group, nistp521, pre);
     ret = 1;
     pre = NULL;
@@ -2107,6 +2108,4 @@ int ec_GFp_nistp521_have_precompute_mult(const EC_GROUP *group)
     return HAVEPRECOMP(group, nistp521);
 }
 
-#else
-static void *dummy = &dummy;
 #endif

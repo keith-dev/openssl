@@ -1,4 +1,3 @@
-/* crypto/mem_dbg.c */
 /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
  * All rights reserved.
  *
@@ -117,7 +116,8 @@
 #include <openssl/buffer.h>
 #include <openssl/bio.h>
 #include <openssl/lhash.h>
-#if defined(CRYPTO_MDEBUG_BACKTRACE) && defined(__GNUC__)
+
+#ifndef OPENSSL_NO_CRYPTO_MDEBUG_BACKTRACE
 # include <execinfo.h>
 #endif
 
@@ -172,7 +172,7 @@ struct mem_st {
     unsigned long order;
     time_t time;
     APP_INFO *app_info;
-#if defined(CRYPTO_MDEBUG_BACKTRACE) && defined(__GNUC__)
+#ifndef OPENSSL_NO_CRYPTO_MDEBUG_BACKTRACE
     void *array[30];
     size_t array_siz;
 #endif
@@ -446,7 +446,7 @@ void CRYPTO_mem_debug_malloc(void *addr, size_t num, int before_p,
                 m->order = order;
             }
             m->order = order++;
-# if defined(CRYPTO_MDEBUG_BACKTRACE) && defined(__GNUC__)
+# ifndef OPENSSL_NO_CRYPTO_MDEBUG_BACKTRACE
             m->array_siz = backtrace(m->array, OSSL_NELEM(m->array));
 # endif
             m->time = time(NULL);
@@ -526,7 +526,7 @@ void CRYPTO_mem_debug_realloc(void *addr1, void *addr2, size_t num,
             if (mp != NULL) {
                 mp->addr = addr2;
                 mp->num = num;
-#if defined(CRYPTO_MDEBUG_BACKTRACE) && defined(__GNUC__)
+#ifndef OPENSSL_NO_CRYPTO_MDEBUG_BACKTRACE
                 mp->array_siz = backtrace(mp->array, OSSL_NELEM(mp->array));
 #endif
                 (void)lh_MEM_insert(mh, mp);
@@ -619,7 +619,7 @@ static void print_leak(const MEM *m, MEM_LEAK *l)
         while (amip && !CRYPTO_THREADID_cmp(&amip->threadid, &ti));
     }
 
-#if defined(CRYPTO_MDEBUG_BACKTRACE) && defined(__GNUC__)
+#ifndef OPENSSL_NO_CRYPTO_MDEBUG_BACKTRACE
     {
         size_t i;
         char **strings = backtrace_symbols(m->array, m->array_siz);
@@ -639,6 +639,9 @@ int CRYPTO_mem_leaks(BIO *b)
 
     if (mh == NULL && amih == NULL)
         return 1;
+
+    /* Ensure all resources are released */
+    OPENSSL_cleanup();
 
     CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_DISABLE);
 
@@ -695,8 +698,8 @@ int CRYPTO_mem_leaks_fp(FILE *fp)
     BIO *b;
     int ret;
 
-    if (mh == NULL)
-        return 0;
+    if (mh == NULL && amih == NULL)
+        return 1;
     /*
      * Need to turn off memory checking when allocated BIOs ... especially as
      * we're creating them at a time when we're trying to check we've not
