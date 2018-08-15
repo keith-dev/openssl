@@ -254,6 +254,10 @@ int RAND_poll(void)
          * at random times on Windows 2000.  Reported by Jeffrey Altman.  
          * Only use it on NT.
 	 */
+	/* Wolfgang Marczy <WMarczy@topcall.co.at> reports that
+	 * the RegQueryValueEx call below can hang on NT4.0 (SP6).
+	 * So we don't use this at all for now. */
+#if 0
         if ( osverinfo.dwPlatformId == VER_PLATFORM_WIN32_NT &&
 		osverinfo.dwMajorVersion < 5)
 		{
@@ -283,13 +287,23 @@ int RAND_poll(void)
 			{
                         /* For entropy count assume only least significant
 			 * byte of each DWORD is random.
-                         */
+			 */
 			RAND_add(&length, sizeof(length), 0);
 			RAND_add(buf, length, length / 4.0);
+
+			/* Close the Registry Key to allow Windows to cleanup/close
+			 * the open handle
+			 * Note: The 'HKEY_PERFORMANCE_DATA' key is implicitly opened
+			 *       when the RegQueryValueEx above is done.  However, if
+			 *       it is not explicitly closed, it can cause disk
+			 *       partition manipulation problems.
+			 */
+			RegCloseKey(HKEY_PERFORMANCE_DATA);
 			}
 		if (buf)
 			free(buf);
 		}
+#endif
 
 	if (advapi)
 		{
@@ -311,7 +325,7 @@ int RAND_poll(void)
 			if (gen(hProvider, sizeof(buf), buf) != 0)
 				{
 				RAND_add(buf, sizeof(buf), sizeof(buf));
-#ifdef DEBUG
+#if 0
 				printf("randomness from PROV_RSA_FULL\n");
 #endif
 				}
@@ -324,7 +338,7 @@ int RAND_poll(void)
 			if (gen(hProvider, sizeof(buf), buf) != 0)
 				{
 				RAND_add(buf, sizeof(buf), sizeof(buf));
-#ifdef DEBUG
+#if 0
 				printf("randomness from PROV_INTEL_SEC\n");
 #endif
 				}
@@ -461,7 +475,7 @@ int RAND_poll(void)
 						hlist.th32ProcessID,
 						hlist.th32HeapID))
 						{
-						int entrycnt = 50;
+						int entrycnt = 80;
 						do
 							RAND_add(&hentry,
 								hentry.dwSize, 5);
@@ -510,7 +524,7 @@ int RAND_poll(void)
 		FreeLibrary(kernel);
 		}
 
-#ifdef DEBUG
+#if 0
 	printf("Exiting RAND_poll\n");
 #endif
 
@@ -570,14 +584,15 @@ static void readtimer(void)
 	DWORD w;
 	LARGE_INTEGER l;
 	static int have_perfc = 1;
-#ifndef __GNUC__
+#ifdef _MSC_VER
 	static int have_tsc = 1;
 	DWORD cyclecount;
 
 	if (have_tsc) {
 	  __try {
 	    __asm {
-	      rdtsc
+	      _emit 0x0f
+	      _emit 0x31
 	      mov cyclecount, eax
 	      }
 	    RAND_add(&cyclecount, sizeof(cyclecount), 1);
@@ -717,16 +732,19 @@ int RAND_poll(void)
 	/* put in some default random data, we need more than just this */
 	l=curr_pid;
 	RAND_add(&l,sizeof(l),0);
+#ifndef VXWORKS
 	l=getuid();
 	RAND_add(&l,sizeof(l),0);
+#endif
 
 	l=time(NULL);
 	RAND_add(&l,sizeof(l),0);
 
 #ifdef DEVRANDOM
 	return 1;
-#endif
+#else
 	return 0;
+#endif
 }
 
 #endif

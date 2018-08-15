@@ -105,9 +105,9 @@ int ASN1_STRING_set_default_mask_asc(char *p)
 		mask = strtoul(p + 5, &end, 0);
 		if(*end) return 0;
 	} else if(!strcmp(p, "nombstr"))
-			 mask = ~(B_ASN1_BMPSTRING|B_ASN1_UTF8STRING);
+		mask = ~((unsigned long)(B_ASN1_BMPSTRING|B_ASN1_UTF8STRING));
 	else if(!strcmp(p, "pkix"))
-			mask = ~B_ASN1_T61STRING;
+			mask = ~((unsigned long)B_ASN1_T61STRING);
 	else if(!strcmp(p, "utf8only")) mask = B_ASN1_UTF8STRING;
 	else if(!strcmp(p, "default"))
 	    mask = 0xFFFFFFFFL;
@@ -133,7 +133,7 @@ ASN1_STRING *ASN1_STRING_set_by_NID(ASN1_STRING **out, const unsigned char *in,
 	if(tbl) {
 		mask = tbl->mask;
 		if(!(tbl->flags & STABLE_NO_MASK)) mask &= global_mask;
-		ret = ASN1_mbstring_ncopy(out, in, inlen, inform, tbl->mask,
+		ret = ASN1_mbstring_ncopy(out, in, inlen, inform, mask,
 					tbl->minsize, tbl->maxsize);
 	} else ret = ASN1_mbstring_copy(out, in, inlen, inform, DIRSTRING_TYPE & global_mask);
 	if(ret <= 0) return NULL;

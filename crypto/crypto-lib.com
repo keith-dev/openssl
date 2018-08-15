@@ -174,7 +174,7 @@ $!
 $ APPS_DES = "DES/DES,CBC3_ENC"
 $ APPS_PKCS7 = "ENC/ENC;DEC/DEC;SIGN/SIGN;VERIFY/VERIFY,EXAMPLE"
 $
-$ LIB_ = "cryptlib,mem,mem_dbg,cversion,ex_data,tmdiff,cpt_err"
+$ LIB_ = "cryptlib,mem,mem_clr,mem_dbg,cversion,ex_data,tmdiff,cpt_err,ebcdic,uid"
 $ LIB_MD2 = "md2_dgst,md2_one"
 $ LIB_MD4 = "md4_dgst,md4_one"
 $ LIB_MD5 = "md5_dgst,md5_one"
@@ -623,6 +623,7 @@ $   WRITE SYS$OUTPUT "	",APPLICATION,".exe"
 $!
 $! Link The Program, Check To See If We Need To Link With RSAREF Or Not.
 $!
+$   ON ERROR THEN GOTO NEXT_APPLICATION
 $   IF (RSAREF.EQS."TRUE")
 $   THEN
 $!
@@ -1325,7 +1326,7 @@ $   CC4 = CC - CCDISABLEWARNINGS + CC4DISABLEWARNINGS
 $!
 $!  Show user the result
 $!
-$   WRITE SYS$OUTPUT "Main C Compiling Command: ",CC
+$   WRITE/SYMBOL SYS$OUTPUT "Main C Compiling Command: ",CC
 $!
 $!  Else The User Entered An Invalid Arguement.
 $!
@@ -1356,7 +1357,7 @@ $ IF ARCH .EQS. "AXP" THEN MACRO = "MACRO/MIGRATION/''DEBUGGER'/''MACRO_OPTIMIZE
 $!
 $!  Show user the result
 $!
-$   WRITE SYS$OUTPUT "Main MACRO Compiling Command: ",MACRO
+$   WRITE/SYMBOL SYS$OUTPUT "Main MACRO Compiling Command: ",MACRO
 $!
 $! Time to check the contents, and to make sure we get the correct library.
 $!
@@ -1456,6 +1457,7 @@ $!
 $! Save directory information
 $!
 $ __HERE = F$PARSE(F$PARSE("A.;",F$ENVIRONMENT("PROCEDURE"))-"A.;","[]A.;") - "A.;"
+$ __HERE = F$EDIT(__HERE,"UPCASE")
 $ __TOP = __HERE - "CRYPTO]"
 $ __INCLUDE = __TOP + "INCLUDE.OPENSSL]"
 $!

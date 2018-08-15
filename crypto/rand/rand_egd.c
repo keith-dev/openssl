@@ -59,7 +59,7 @@
 /* Query the EGD <URL: http://www.lothar.com/tech/crypto/>.
  */
 
-#if defined(WIN32) || defined(VMS) || defined(__VMS)
+#if defined(WIN32) || defined(MSDOS) || defined(VMS) || defined(__VMS) || defined(VXWORKS)
 int RAND_egd(const char *path)
 	{
 	return(-1);
@@ -74,7 +74,18 @@ int RAND_egd_bytes(const char *path,int bytes)
 #include OPENSSL_UNISTD
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <sys/un.h>
+#ifndef NO_SYS_UN_H
+# ifdef VXWORKS
+#   include <streams/un.h>
+# else
+#   include <sys/un.h>
+# endif
+#else
+struct	sockaddr_un {
+	short	sun_family;		/* AF_UNIX */
+	char	sun_path[108];		/* path name (gag) */
+};
+#endif /* NO_SYS_UN_H */
 #include <string.h>
 
 #ifndef offsetof

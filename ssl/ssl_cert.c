@@ -271,7 +271,9 @@ CERT *ssl_cert_dup(CERT *cert)
 
 	return(ret);
 	
+#ifndef NO_DH /* avoid 'unreferenced label' warning if NO_DH is defined */
 err:
+#endif
 #ifndef NO_RSA
 	if (ret->rsa_tmp != NULL)
 		RSA_free(ret->rsa_tmp);
@@ -458,6 +460,9 @@ int ssl_verify_cert_chain(SSL *s,STACK_OF(X509) *sk)
 	else i = X509_PURPOSE_SSL_SERVER;
 
 	X509_STORE_CTX_purpose_inherit(&ctx, i, s->purpose, s->trust);
+
+	if (s->verify_callback)
+		X509_STORE_CTX_set_verify_cb(&ctx, s->verify_callback);
 
 	if (s->ctx->app_verify_callback != NULL)
 		i=s->ctx->app_verify_callback(&ctx); /* should pass app_verify_arg */
@@ -746,6 +751,7 @@ int SSL_add_dir_cert_subjects_to_stack(STACK_OF(X509_NAME) *stack,
 	ret = 1;
 
 err:	
+	if (d) closedir(d);
 	CRYPTO_w_unlock(CRYPTO_LOCK_READDIR);
 	return ret;
 	}

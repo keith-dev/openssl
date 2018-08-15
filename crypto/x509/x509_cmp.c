@@ -57,6 +57,7 @@
  */
 
 #include <stdio.h>
+#include <ctype.h>
 #include "cryptlib.h"
 #include <openssl/asn1.h>
 #include <openssl/objects.h>
@@ -157,6 +158,99 @@ int X509_cmp(const X509 *a, const X509 *b)
 }
 #endif
 
+
+/* Case insensitive string comparision */
+static int nocase_cmp(const ASN1_STRING *a, const ASN1_STRING *b)
+{
+	int i;
+
+	if (a->length != b->length)
+		return (a->length - b->length);
+
+	for (i=0; i<a->length; i++)
+	{
+		int ca, cb;
+
+		ca = tolower(a->data[i]);
+		cb = tolower(b->data[i]);
+
+		if (ca != cb)
+			return(ca-cb);
+	}
+	return 0;
+}
+
+/* Case insensitive string comparision with space normalization 
+ * Space normalization - ignore leading, trailing spaces, 
+ *       multiple spaces between characters are replaced by single space  
+ */
+static int nocase_spacenorm_cmp(const ASN1_STRING *a, const ASN1_STRING *b)
+{
+	unsigned char *pa = NULL, *pb = NULL;
+	int la, lb;
+	
+	la = a->length;
+	lb = b->length;
+	pa = a->data;
+	pb = b->data;
+
+	/* skip leading spaces */
+	while (la > 0 && isspace(*pa))
+	{
+		la--;
+		pa++;
+	}
+	while (lb > 0 && isspace(*pb))
+	{
+		lb--;
+		pb++;
+	}
+
+	/* skip trailing spaces */
+	while (la > 0 && isspace(pa[la-1]))
+		la--;
+	while (lb > 0 && isspace(pb[lb-1]))
+		lb--;
+
+	/* compare strings with space normalization */
+	while (la > 0 && lb > 0)
+	{
+		int ca, cb;
+
+		/* compare character */
+		ca = tolower(*pa);
+		cb = tolower(*pb);
+		if (ca != cb)
+			return (ca - cb);
+
+		pa++; pb++;
+		la--; lb--;
+
+		if (la <= 0 || lb <= 0)
+			break;
+
+		/* is white space next character ? */
+		if (isspace(*pa) && isspace(*pb))
+		{
+			/* skip remaining white spaces */
+			while (la > 0 && isspace(*pa))
+			{
+				la--;
+				pa++;
+			}
+			while (lb > 0 && isspace(*pb))
+			{
+				lb--;
+				pb++;
+			}
+		}
+	}
+	if (la > 0 || lb > 0)
+		return la - lb;
+
+	return 0;
+}
+
 int X509_NAME_cmp(const X509_NAME *a, const X509_NAME *b)
 	{
 	int i,j;
@@ -170,10 +264,20 @@ int X509_NAME_cmp(const X509_NAME *a, const X509_NAME *b)
 		{
 		na=sk_X509_NAME_ENTRY_value(a->entries,i);
 		nb=sk_X509_NAME_ENTRY_value(b->entries,i);
-		j=na->value->length-nb->value->length;
+		j=na->value->type-nb->value->type;
 		if (j) return(j);
-		j=memcmp(na->value->data,nb->value->data,
-			na->value->length);
+		if (na->value->type == V_ASN1_PRINTABLESTRING)
+			j=nocase_spacenorm_cmp(na->value, nb->value);
+		else if (na->value->type == V_ASN1_IA5STRING
+			&& OBJ_obj2nid(na->object) == NID_pkcs9_emailAddress)
+			j=nocase_cmp(na->value, nb->value);
+		else
+			{
+			j=na->value->length-nb->value->length;
+			if (j) return(j);
+			j=memcmp(na->value->data,nb->value->data,
+				na->value->length);
+			}
 		if (j) return(j);
 		j=na->set-nb->set;
 		if (j) return(j);
@@ -199,19 +303,13 @@ unsigned long X509_NAME_hash(X509_NAME *x)
 	{
 	unsigned long ret=0;
 	unsigned char md[16];
-	unsigned char str[256],*p,*pp;
-	int i;
 
-	i=i2d_X509_NAME(x,NULL);
-	if (i > sizeof(str))
-		p=OPENSSL_malloc(i);
-	else
-		p=str;
-
-	pp=p;
-	i2d_X509_NAME(x,&pp);
-	MD5((unsigned char *)p,i,&(md[0]));
-	if (p != str) OPENSSL_free(p);
+	/* Ensure cached version is up to date */
+	i2d_X509_NAME(x,NULL);
+	/* Use cached encoding directly rather than copying: this should
+	 * keep libsafe happy.
+	 */
+	MD5((unsigned char *)x->bytes->data,x->bytes->length,&(md[0]));
 
 	ret=(	((unsigned long)md[0]     )|((unsigned long)md[1]<<8L)|
 		((unsigned long)md[2]<<16L)|((unsigned long)md[3]<<24L)

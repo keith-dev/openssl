@@ -55,6 +55,59 @@
  * copied and put under another distribution licence
  * [including the GNU Public Licence.]
  */
+/* ====================================================================
+ * Copyright (c) 1998-2002 The OpenSSL Project.  All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer. 
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in
+ *    the documentation and/or other materials provided with the
+ *    distribution.
+ *
+ * 3. All advertising materials mentioning features or use of this
+ *    software must display the following acknowledgment:
+ *    "This product includes software developed by the OpenSSL Project
+ *    for use in the OpenSSL Toolkit. (http://www.openssl.org/)"
+ *
+ * 4. The names "OpenSSL Toolkit" and "OpenSSL Project" must not be used to
+ *    endorse or promote products derived from this software without
+ *    prior written permission. For written permission, please contact
+ *    openssl-core@openssl.org.
+ *
+ * 5. Products derived from this software may not be called "OpenSSL"
+ *    nor may "OpenSSL" appear in their names without prior written
+ *    permission of the OpenSSL Project.
+ *
+ * 6. Redistributions of any form whatsoever must retain the following
+ *    acknowledgment:
+ *    "This product includes software developed by the OpenSSL Project
+ *    for use in the OpenSSL Toolkit (http://www.openssl.org/)"
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE OpenSSL PROJECT ``AS IS'' AND ANY
+ * EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE OpenSSL PROJECT OR
+ * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ * ====================================================================
+ *
+ * This product includes cryptographic software written by Eric Young
+ * (eay@cryptsoft.com).  This product includes software written by Tim
+ * Hudson (tjh@cryptsoft.com).
+ *
+ */
 
 #include <stdio.h>
 #include <openssl/buffer.h>
@@ -64,6 +117,7 @@
 #include <openssl/sha.h>
 #include <openssl/evp.h>
 #include "ssl_locl.h"
+#include "cryptlib.h"
 
 static SSL_METHOD *ssl3_get_client_method(int ver);
 static int ssl3_client_hello(SSL *s);
@@ -92,18 +146,25 @@ SSL_METHOD *SSLv3_client_method(void)
 
 	if (init)
 		{
-		init=0;
-		memcpy((char *)&SSLv3_client_data,(char *)sslv3_base_method(),
-			sizeof(SSL_METHOD));
-		SSLv3_client_data.ssl_connect=ssl3_connect;
-		SSLv3_client_data.get_ssl_method=ssl3_get_client_method;
+		CRYPTO_w_lock(CRYPTO_LOCK_SSL_METHOD);
+
+		if (init)
+			{
+			memcpy((char *)&SSLv3_client_data,(char *)sslv3_base_method(),
+				sizeof(SSL_METHOD));
+			SSLv3_client_data.ssl_connect=ssl3_connect;
+			SSLv3_client_data.get_ssl_method=ssl3_get_client_method;
+			init=0;
+			}
+
+		CRYPTO_w_unlock(CRYPTO_LOCK_SSL_METHOD);
 		}
 	return(&SSLv3_client_data);
 	}
 
 int ssl3_connect(SSL *s)
 	{
-	BUF_MEM *buf;
+	BUF_MEM *buf=NULL;
 	unsigned long Time=time(NULL),l;
 	long num1;
 	void (*cb)()=NULL;
@@ -119,8 +180,8 @@ int ssl3_connect(SSL *s)
 	else if (s->ctx->info_callback != NULL)
 		cb=s->ctx->info_callback;
 	
-	if (!SSL_in_init(s) || SSL_in_before(s)) SSL_clear(s); 
 	s->in_handshake++;
+	if (!SSL_in_init(s) || SSL_in_before(s)) SSL_clear(s); 
 
 	for (;;)
 		{
@@ -164,6 +225,7 @@ int ssl3_connect(SSL *s)
 					goto end;
 					}
 				s->init_buf=buf;
+				buf=NULL;
 				}
 
 			if (!ssl3_setup_buffers(s)) { ret= -1; goto end; }
@@ -441,9 +503,11 @@ int ssl3_connect(SSL *s)
 		skip=0;
 		}
 end:
+	s->in_handshake--;
+	if (buf != NULL)
+		BUF_MEM_free(buf);
 	if (cb != NULL)
 		cb(s,SSL_CB_CONNECT_EXIT,ret);
-	s->in_handshake--;
 	return(ret);
 	}
 
@@ -492,6 +556,11 @@ static int ssl3_client_hello(SSL *s)
 		*(p++)=i;
 		if (i != 0)
 			{
+			if (i > sizeof s->session->session_id)
+				{
+				SSLerr(SSL_F_SSL3_CLIENT_HELLO, SSL_R_INTERNAL_ERROR);
+				goto err;
+				}
 			memcpy(p,s->session->session_id,i);
 			p+=i;
 			}
@@ -573,15 +642,11 @@ static int ssl3_get_server_hello(SSL *s)
 	/* get the session-id */
 	j= *(p++);
 
-	if ((j != 0) && (j != SSL3_SESSION_ID_SIZE))
+	if ((j > sizeof s->session->session_id) || (j > SSL3_SESSION_ID_SIZE))
 		{
-		/* SSLref returns 16 :-( */
-		if (j < SSL2_SSL_SESSION_ID_LENGTH)
-			{
-			al=SSL_AD_ILLEGAL_PARAMETER;
-			SSLerr(SSL_F_SSL3_GET_SERVER_HELLO,SSL_R_SSL3_SESSION_ID_TOO_SHORT);
-			goto f_err;
-			}
+		al=SSL_AD_ILLEGAL_PARAMETER;
+		SSLerr(SSL_F_SSL3_GET_SERVER_HELLO,SSL_R_SSL3_SESSION_ID_TOO_LONG);
+		goto f_err;
 		}
 	if (j != 0 && j == s->session->session_id_length
 	    && memcmp(p,s->session->session_id,j) == 0)
@@ -589,6 +654,7 @@ static int ssl3_get_server_hello(SSL *s)
 	    if(s->sid_ctx_length != s->session->sid_ctx_length
 	       || memcmp(s->session->sid_ctx,s->sid_ctx,s->sid_ctx_length))
 		{
+		/* actually a client application bug */
 		al=SSL_AD_ILLEGAL_PARAMETER;
 		SSLerr(SSL_F_SSL3_GET_SERVER_HELLO,SSL_R_ATTEMPT_TO_REUSE_SESSION_IN_DIFFERENT_CONTEXT);
 		goto f_err;
@@ -632,7 +698,12 @@ static int ssl3_get_server_hello(SSL *s)
 		goto f_err;
 		}
 
-	if (s->hit && (s->session->cipher != c))
+	/* Depending on the session caching (internal/external), the cipher
+	   and/or cipher_id values may not be set. Make sure that
+	   cipher_id is set and use it for comparison. */
+	if (s->session->cipher)
+		s->session->cipher_id = s->session->cipher->id;
+	if (s->hit && (s->session->cipher_id != c->id))
 		{
 		if (!(s->options &
 			SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG))
@@ -815,6 +886,7 @@ static int ssl3_get_server_certificate(SSL *s)
 		X509_free(s->session->peer);
 	CRYPTO_add(&x->references,1,CRYPTO_LOCK_X509);
 	s->session->peer=x;
+	s->session->verify_result = s->verify_result;
 
 	x=NULL;
 	ret=1;
@@ -848,11 +920,17 @@ static int ssl3_get_key_exchange(SSL *s)
 	DH *dh=NULL;
 #endif
 
+	/* use same message size as in ssl3_get_certificate_request()
+	 * as ServerKeyExchange message may be skipped */
 	n=ssl3_get_message(s,
 		SSL3_ST_CR_KEY_EXCH_A,
 		SSL3_ST_CR_KEY_EXCH_B,
 		-1,
-		1024*8, /* ?? */
+#if defined(OPENSSL_SYS_MSDOS) && !defined(OPENSSL_SYS_WIN32)
+		1024*30,  /* 30k max cert list :-) */
+#else
+		1024*100, /* 100k max cert list :-) */
+#endif
 		&ok);
 
 	if (!ok) return((int)n);
@@ -1307,6 +1385,7 @@ static int ssl3_get_server_done(SSL *s)
 		/* should contain no data */
 		ssl3_send_alert(s,SSL3_AL_FATAL,SSL_AD_DECODE_ERROR);
 		SSLerr(SSL_F_SSL3_GET_SERVER_DONE,SSL_R_LENGTH_MISMATCH);
+		return -1;
 		}
 	ret=1;
 	return(ret);
@@ -1385,7 +1464,7 @@ static int ssl3_send_client_key_exchange(SSL *s)
 				s->method->ssl3_enc->generate_master_secret(s,
 					s->session->master_key,
 					tmp_buf,SSL_MAX_MASTER_KEY_LENGTH);
-			memset(tmp_buf,0,SSL_MAX_MASTER_KEY_LENGTH);
+			OPENSSL_cleanse(tmp_buf,SSL_MAX_MASTER_KEY_LENGTH);
 			}
 		else
 #endif

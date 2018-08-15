@@ -906,7 +906,7 @@ $   CC = CC + "/DEFINE=(" + CCDEFS + ")" + CCDISABLEWARNINGS
 $!
 $!  Show user the result
 $!
-$   WRITE SYS$OUTPUT "Main Compiling Command: ",CC
+$   WRITE/SYMBOL SYS$OUTPUT "Main Compiling Command: ",CC
 $!
 $!  Else The User Entered An Invalid Arguement.
 $!
@@ -1050,6 +1050,7 @@ $!
 $! Save directory information
 $!
 $ __HERE = F$PARSE(F$PARSE("A.;",F$ENVIRONMENT("PROCEDURE"))-"A.;","[]A.;") - "A.;"
+$ __HERE = F$EDIT(__HERE,"UPCASE")
 $ __TOP = __HERE - "TEST]"
 $ __INCLUDE = __TOP + "INCLUDE.OPENSSL]"
 $!

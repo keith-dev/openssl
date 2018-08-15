@@ -83,6 +83,7 @@ typedef unsigned int u_int;
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 #include <openssl/ssl.h>
+#include <openssl/rand.h>
 #include "s_apps.h"
 
 #ifdef WINDOWS
@@ -242,6 +243,7 @@ static void sv_usage(void)
 	BIO_printf(bio_err," -bugs         - Turn on SSL bug compatibility\n");
 	BIO_printf(bio_err," -www          - Respond to a 'GET /' with a status page\n");
 	BIO_printf(bio_err," -WWW          - Respond to a 'GET /<path> HTTP/1.0' with file ./<path>\n");
+	BIO_printf(bio_err," -rand file%cfile%c...\n", LIST_SEPARATOR_CHAR, LIST_SEPARATOR_CHAR);
 	}
 
 static int local_argc=0;
@@ -251,10 +253,10 @@ static char **local_argv;
 static int ebcdic_new(BIO *bi);
 static int ebcdic_free(BIO *a);
 static int ebcdic_read(BIO *b, char *out, int outl);
-static int ebcdic_write(BIO *b, char *in, int inl);
-static long ebcdic_ctrl(BIO *b, int cmd, long num, char *ptr);
+static int ebcdic_write(BIO *b, const char *in, int inl);
+static long ebcdic_ctrl(BIO *b, int cmd, long num, void *ptr);
 static int ebcdic_gets(BIO *bp, char *buf, int size);
-static int ebcdic_puts(BIO *bp, char *str);
+static int ebcdic_puts(BIO *bp, const char *str);
 
 #define BIO_TYPE_EBCDIC_FILTER	(18|0x0200)
 static BIO_METHOD methods_ebcdic=
@@ -319,7 +321,7 @@ static int ebcdic_read(BIO *b, char *out, int outl)
 	return(ret);
 }
 
-static int ebcdic_write(BIO *b, char *in, int inl)
+static int ebcdic_write(BIO *b, const char *in, int inl)
 {
 	EBCDIC_OUTBUFF *wbuf;
 	int ret=0;
@@ -352,7 +354,7 @@ static int ebcdic_write(BIO *b, char *in, int inl)
 	return(ret);
 }
 
-static long ebcdic_ctrl(BIO *b, int cmd, long num, char *ptr)
+static long ebcdic_ctrl(BIO *b, int cmd, long num, void *ptr)
 {
 	long ret;
 
@@ -371,7 +373,7 @@ static long ebcdic_ctrl(BIO *b, int cmd, long num, char *ptr)
 
 static int ebcdic_gets(BIO *bp, char *buf, int size)
 {
-	int i, ret;
+	int i, ret=0;
 	if (bp->next_bio == NULL) return(0);
 /*	return(BIO_gets(bp->next_bio,buf,size));*/
 	for (i=0; i<size-1; ++i)
@@ -390,7 +392,7 @@ static int ebcdic_gets(BIO *bp, char *buf, int size)
 	return (ret < 0 && i == 0) ? ret : i;
 }
 
-static int ebcdic_puts(BIO *bp, char *str)
+static int ebcdic_puts(BIO *bp, const char *str)
 {
 	if (bp->next_bio == NULL) return(0);
 	return ebcdic_write(bp, str, strlen(str));
@@ -411,6 +413,7 @@ int MAIN(int argc, char *argv[])
 	int no_tmp_rsa=0,no_dhe=0,nocert=0;
 	int state=0;
 	SSL_METHOD *meth=NULL;
+	char *inrand=NULL;
 #ifndef NO_DH
 	DH *dh=NULL;
 #endif
@@ -565,6 +568,11 @@ int MAIN(int argc, char *argv[])
 		else if	(strcmp(*argv,"-tls1") == 0)
 			{ meth=TLSv1_server_method(); }
 #endif
+		else if (strcmp(*argv,"-rand") == 0)
+			{
+			if (--argc < 1) goto bad;
+			inrand= *(++argv);
+			}
 		else
 			{
 			BIO_printf(bio_err,"unknown option %s\n",*argv);
@@ -581,7 +589,14 @@ bad:
 		goto end;
 		}
 
-	app_RAND_load_file(NULL, bio_err, 0);
+	if (!app_RAND_load_file(NULL, bio_err, 1) && inrand == NULL
+		&& !RAND_status())
+		{
+		BIO_printf(bio_err,"warning, not much extra random data, consider using the -rand option\n");
+		}
+	if (inrand != NULL)
+		BIO_printf(bio_err,"%ld semi-random bytes loaded\n",
+			app_RAND_load_files(inrand));
 
 	if (bio_s_out == NULL)
 		{
@@ -676,7 +691,8 @@ bad:
 
 #ifndef NO_RSA
 #if 1
-	SSL_CTX_set_tmp_rsa_callback(ctx,tmp_rsa_cb);
+	if (!no_tmp_rsa)
+		SSL_CTX_set_tmp_rsa_callback(ctx,tmp_rsa_cb);
 #else
 	if (!no_tmp_rsa && SSL_CTX_need_tmp_RSA(ctx))
 		{
@@ -725,7 +741,7 @@ end:
 		BIO_free(bio_s_out);
 		bio_s_out=NULL;
 		}
-	EXIT(ret);
+	OPENSSL_EXIT(ret);
 	}
 
 static void print_stats(BIO *bio, SSL_CTX *ssl_ctx)
@@ -1027,7 +1043,7 @@ err:
 	BIO_printf(bio_s_out,"CONNECTION CLOSED\n");
 	if (buf != NULL)
 		{
-		memset(buf,0,bufsize);
+		OPENSSL_cleanse(buf,bufsize);
 		OPENSSL_free(buf);
 		}
 	if (ret >= 0)
@@ -1234,7 +1250,7 @@ static int www_body(char *hostname, int s, unsigned char *context)
 			else
 				{
 				BIO_printf(bio_s_out,"read R BLOCK\n");
-#ifndef MSDOS
+#if !defined(MSDOS) && !defined(VXWORKS)
 				sleep(1);
 #endif
 				continue;
@@ -1336,15 +1352,29 @@ static int www_body(char *hostname, int s, unsigned char *context)
 
 			/* skip the '/' */
 			p= &(buf[5]);
-			dot=0;
+
+			dot = 1;
 			for (e=p; *e != '\0'; e++)
 				{
-				if (e[0] == ' ') break;
-				if (	(e[0] == '.') &&
-					(strncmp(&(e[-1]),"/../",4) == 0))
-					dot=1;
+				if (e[0] == ' ')
+					break;
+
+				switch (dot)
+					{
+				case 1:
+					dot = (e[0] == '.') ? 2 : 0;
+					break;
+				case 2:
+					dot = (e[0] == '.') ? 3 : 0;
+					break;
+				case 3:
+					dot = (e[0] == '/') ? -1 : 0;
+					break;
+					}
+				if (dot == 0)
+					dot = (e[0] == '/') ? 1 : 0;
 				}
-			
+			dot = (dot == 3) || (dot == -1); /* filename contains ".." component */
 
 			if (*e == '\0')
 				{
@@ -1368,9 +1398,11 @@ static int www_body(char *hostname, int s, unsigned char *context)
 				break;
 				}
 
+#if 0
 			/* append if a directory lookup */
 			if (e[-1] == '/')
 				strcat(p,"index.html");
+#endif
 
 			/* if a directory, do the index thang */
 			if (stat(p,&st_buf) < 0)
@@ -1382,7 +1414,13 @@ static int www_body(char *hostname, int s, unsigned char *context)
 				}
 			if (S_ISDIR(st_buf.st_mode))
 				{
+#if 0 /* must check buffer size */
 				strcat(p,"/index.html");
+#else
+				BIO_puts(io,text);
+				BIO_printf(io,"'%s' is a directory\r\n",p);
+				break;
+#endif
 				}
 
 			if ((file=BIO_new_file(p,"r")) == NULL)

@@ -567,7 +567,7 @@ int X509_cmp_time(ASN1_TIME *ctm, time_t *cmp_time)
 	{
 	char *str;
 	ASN1_TIME atm;
-	time_t offset;
+	long offset;
 	char buff1[24],buff2[24],*p;
 	int i,j;
 
@@ -909,6 +909,12 @@ void X509_STORE_CTX_set_time(X509_STORE_CTX *ctx, long flags, time_t t)
 	{
 	ctx->check_time = t;
 	ctx->flags |= X509_V_FLAG_USE_CHECK_TIME;
+	}
+
+void X509_STORE_CTX_set_verify_cb(X509_STORE_CTX *ctx,
+				  int (*verify_cb)(int, X509_STORE_CTX *))
+	{
+	ctx->verify_cb=verify_cb;
 	}
 
 IMPLEMENT_STACK_OF(X509)

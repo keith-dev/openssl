@@ -198,7 +198,7 @@
    *
    * 					<appro@fy.chalmers.se>
    */
-#  if defined(__i386)
+#  if defined(__i386) || defined(__i386__)
 #   define ROTATE(a,n)	({ register unsigned int ret;	\
 				asm (			\
 				"roll %1,%0"		\
@@ -224,7 +224,7 @@
  */
 # if defined(__GNUC__) && __GNUC__>=2 && !defined(NO_ASM) && !defined(NO_INLINE_ASM)
   /* some GNU C inline assembler templates by <appro@fy.chalmers.se> */
-#  if defined(__i386) && !defined(I386_ONLY)
+#  if (defined(__i386) || defined(__i386__)) && !defined(I386_ONLY)
 #   define BE_FETCH32(a)	({ register unsigned int l=(a);\
 				asm (			\
 				"bswapl %0"		\
@@ -602,6 +602,6 @@ void HASH_FINAL (unsigned char *md, HASH_CTX *c)
 	c->num=0;
 	/* clear stuff, HASH_BLOCK may be leaving some stuff on the stack
 	 * but I'm not worried :-)
-	memset((void *)c,0,sizeof(HASH_CTX));
+	OPENSSL_cleanse((void *)c,sizeof(HASH_CTX));
 	 */
 	}

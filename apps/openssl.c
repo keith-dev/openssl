@@ -77,19 +77,19 @@ static unsigned long MS_CALLBACK hash(FUNCTION *a);
 static int MS_CALLBACK cmp(FUNCTION *a,FUNCTION *b);
 static LHASH *prog_init(void );
 static int do_cmd(LHASH *prog,int argc,char *argv[]);
-LHASH *config=NULL;
 char *default_config_file=NULL;
 
 /* Make sure there is only one when MONOLITH is defined */
 #ifdef MONOLITH
+LHASH *config=NULL;
 BIO *bio_err=NULL;
 #endif
 
 int main(int Argc, char *Argv[])
 	{
 	ARGS arg;
-#define PROG_NAME_SIZE	16
-	char pname[PROG_NAME_SIZE];
+#define PROG_NAME_SIZE	39
+	char pname[PROG_NAME_SIZE+1];
 	FUNCTION f,*fp;
 	MS_STATIC char *prompt,buf[1024],config_name[256];
 	int n,i,ret=0;
@@ -215,7 +215,7 @@ end:
 		BIO_free(bio_err);
 		bio_err=NULL;
 		}
-	EXIT(ret);
+	OPENSSL_EXIT(ret);
 	}
 
 #define LIST_STANDARD_COMMANDS "list-standard-commands"

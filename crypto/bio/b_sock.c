@@ -72,9 +72,9 @@
 #endif
 
 #ifdef SO_MAXCONN
-#define MAX_LISTEN  SOMAXCONN
-#elif defined(SO_MAXCONN)
 #define MAX_LISTEN  SO_MAXCONN
+#elif defined(SOMAXCONN)
+#define MAX_LISTEN  SOMAXCONN
 #else
 #define MAX_LISTEN  32
 #endif
@@ -95,8 +95,10 @@ static struct ghbn_cache_st
 	} ghbn_cache[GHBN_NUM];
 
 static int get_ip(const char *str,unsigned char *ip);
+#if 0
 static void ghbn_free(struct hostent *a);
 static struct hostent *ghbn_dup(struct hostent *a);
+#endif
 int BIO_get_host_ip(const char *str, unsigned char *ip)
 	{
 	int i;
@@ -113,8 +115,8 @@ int BIO_get_host_ip(const char *str, unsigned char *ip)
 
 	/* At this point, we have something that is most probably correct
 	   in some way, so let's init the socket. */
-	if (!BIO_sock_init())
-		return(0); /* don't generate another error code here */
+	if (BIO_sock_init() != 1)
+		return 0; /* don't generate another error code here */
 
 	/* If the string actually contained an IP address, we need not do
 	   anything more */
@@ -266,6 +268,7 @@ long BIO_ghbn_ctrl(int cmd, int iarg, char *parg)
 	return(1);
 	}
 
+#if 0
 static struct hostent *ghbn_dup(struct hostent *a)
 	{
 	struct hostent *ret;
@@ -342,21 +345,27 @@ static void ghbn_free(struct hostent *a)
 	if (a->h_name != NULL) OPENSSL_free(a->h_name);
 	OPENSSL_free(a);
 	}
+#endif
 
 struct hostent *BIO_gethostbyname(const char *name)
 	{
+#if 1
+	/* Caching gethostbyname() results forever is wrong,
+	 * so we have to let the true gethostbyname() worry about this */
+	return gethostbyname(name);
+#else
 	struct hostent *ret;
 	int i,lowi=0,j;
 	unsigned long low= (unsigned long)-1;
 
-/*	return(gethostbyname(name)); */
 
-#if 0 /* It doesn't make sense to use locking here: The function interface
-	   * is not thread-safe, because threads can never be sure when
-	   * some other thread destroys the data they were given a pointer to.
-	   */
+#  if 0
+	/* It doesn't make sense to use locking here: The function interface
+	 * is not thread-safe, because threads can never be sure when
+	 * some other thread destroys the data they were given a pointer to.
+	 */
 	CRYPTO_w_lock(CRYPTO_LOCK_GETHOSTBYNAME);
-#endif
+#  endif
 	j=strlen(name);
 	if (j < 128)
 		{
@@ -384,20 +393,21 @@ struct hostent *BIO_gethostbyname(const char *name)
 		 * parameter is 'char *', instead of 'const char *'
 		 */
 		ret=gethostbyname(
-#ifndef CONST_STRICT
+#  ifndef CONST_STRICT
 		    (char *)
-#endif
+#  endif
 		    name);
 
 		if (ret == NULL)
 			goto end;
 		if (j > 128) /* too big to cache */
 			{
-#if 0 /* If we were trying to make this function thread-safe (which
-	   * is bound to fail), we'd have to give up in this case
-	   * (or allocate more memory). */
+#  if 0
+			/* If we were trying to make this function thread-safe (which
+			 * is bound to fail), we'd have to give up in this case
+			 * (or allocate more memory). */
 			ret = NULL;
-#endif
+#  endif
 			goto end;
 			}
 
@@ -421,11 +431,13 @@ struct hostent *BIO_gethostbyname(const char *name)
 		ghbn_cache[i].order=BIO_ghbn_miss+BIO_ghbn_hits;
 		}
 end:
-#if 0
+#  if 0
 	CRYPTO_w_unlock(CRYPTO_LOCK_GETHOSTBYNAME);
-#endif
+#  endif
 	return(ret);
+#endif
 	}
+
 
 int BIO_sock_init(void)
 	{
@@ -519,15 +531,15 @@ int BIO_get_accept_socket(char *host, int bind_mode)
 	{
 	int ret=0;
 	struct sockaddr_in server,client;
-	int s= -1,cs;
+	int s=INVALID_SOCKET,cs;
 	unsigned char ip[4];
 	unsigned short port;
-	char *str,*e;
+	char *str=NULL,*e;
 	const char *h,*p;
 	unsigned long l;
 	int err_num;
 
-	if (!BIO_sock_init()) return(INVALID_SOCKET);
+	if (BIO_sock_init() != 1) return(INVALID_SOCKET);
 
 	if ((str=BUF_strdup(host)) == NULL) return(INVALID_SOCKET);
 
@@ -553,7 +565,7 @@ int BIO_get_accept_socket(char *host, int bind_mode)
 		h="*";
 		}
 
-	if (!BIO_get_port(p,&port)) return(INVALID_SOCKET);
+	if (!BIO_get_port(p,&port)) goto err;
 
 	memset((char *)&server,0,sizeof(server));
 	server.sin_family=AF_INET;
@@ -563,7 +575,7 @@ int BIO_get_accept_socket(char *host, int bind_mode)
 		server.sin_addr.s_addr=INADDR_ANY;
 	else
 		{
-		if (!BIO_get_host_ip(h,&(ip[0]))) return(INVALID_SOCKET);
+                if (!BIO_get_host_ip(h,&(ip[0]))) goto err;
 		l=(unsigned long)
 			((unsigned long)ip[0]<<24L)|
 			((unsigned long)ip[1]<<16L)|

@@ -82,12 +82,12 @@
 #include <openssl/rand.h>
 #include <openssl/err.h>
 
-#if defined(__FreeBSD__)
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(_DARWIN)
 # define USE_TOD
-#elif !defined(MSDOS) && (!defined(VMS) || defined(__DECC))
+#elif !defined(MSDOS) && !defined(VXWORKS) && (!defined(VMS) || defined(__DECC))
 # define TIMES
 #endif
-#if !defined(_UNICOS) && !defined(__OpenBSD__) && !defined(sgi) && !defined(__FreeBSD__) && !(defined(__bsdi) || defined(__bsdi__)) && !defined(_AIX) && !defined(MPE)
+#if !defined(_UNICOS) && !defined(__OpenBSD__) && !defined(sgi) && !defined(__FreeBSD__) && !(defined(__bsdi) || defined(__bsdi__)) && !defined(_AIX) && !defined(MPE) && !defined(__NetBSD__) && !defined(_DARWIN) && !defined(VXWORKS)
 # define TIMEB
 #endif
 
@@ -115,7 +115,7 @@
 #include <sys/timeb.h>
 #endif
 
-#if !defined(TIMES) && !defined(TIMEB) && !defined(USE_TOD)
+#if !defined(TIMES) && !defined(TIMEB) && !defined(USE_TOD) && !defined(VXWORKS)
 #error "It seems neither struct tms nor struct timeb is supported in this platform!"
 #endif
 
@@ -224,7 +224,7 @@ static double Time_F(int s, int usertime)
 
 #ifdef USE_TOD
 	if(usertime)
-	    {
+		{
 		static struct rusage tstart,tend;
 
 		if (s == START)
@@ -284,7 +284,23 @@ static double Time_F(int s, int usertime)
 # if defined(TIMES) && defined(TIMEB)
 	else
 # endif
-# ifdef TIMEB
+# ifdef VXWORKS
+		{
+		static unsigned long tick_start, tick_end;
+
+		if( s == START )
+			{
+			tick_start = tickGet();
+			return 0;
+			}
+		else
+			{
+			tick_end = tickGet();
+			ret = (double)(tick_end - tick_start) / (double)sysClkRateGet();
+			return((ret < 0.001)?0.001:ret);
+			}
+                }
+# elif defined(TIMEB)
 		{
 		static struct timeb tstart,tend;
 		long i;
@@ -303,6 +319,7 @@ static double Time_F(int s, int usertime)
 			}
 		}
 # endif
+
 #endif
 	}
 
@@ -318,7 +335,9 @@ int MAIN(int argc, char **argv)
 #define DSA_NUM		3
 	long count,rsa_count;
 	int i,j,k;
+#ifndef NO_RSA
 	unsigned rsa_num;
+#endif
 #ifndef NO_MD2
 	unsigned char md2[MD2_DIGEST_LENGTH];
 #endif
@@ -670,7 +689,7 @@ int MAIN(int argc, char **argv)
 			BIO_printf(bio_err,"\n");
 #endif
 
-#ifdef TIMES
+#if defined(TIMES) || defined(USE_TOD)
 			BIO_printf(bio_err,"\n");
 			BIO_printf(bio_err,"Available options:\n");
 			BIO_printf(bio_err,"-elapsed        measure time in real time instead of CPU user time.\n");
@@ -831,6 +850,7 @@ int MAIN(int argc, char **argv)
 		}
 #endif
 
+#ifndef NO_DSA
 	dsa_c[R_DSA_512][0]=count/1000;
 	dsa_c[R_DSA_512][1]=count/1000/2;
 	for (i=1; i<DSA_NUM; i++)
@@ -848,6 +868,7 @@ int MAIN(int argc, char **argv)
 				}
 			}				
 		}
+#endif
 
 #define COND(d)	(count < (d))
 #define COUNT(d) (d)
@@ -1173,7 +1194,7 @@ int MAIN(int argc, char **argv)
 			{
 			BIO_printf(bio_err,"RSA verify failure.  No RSA verify will be done.\n");
 			ERR_print_errors(bio_err);
-			dsa_doit[j] = 0;
+			rsa_doit[j] = 0;
 			}
 		else
 			{
@@ -1391,7 +1412,7 @@ end:
 		if (dsa_key[i] != NULL)
 			DSA_free(dsa_key[i]);
 #endif
-	EXIT(mret);
+	OPENSSL_EXIT(mret);
 	}
 
 static void print_message(char *s, long num, int length)
