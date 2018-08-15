@@ -1095,6 +1095,8 @@ foreach (sort (keys %disabled))
 			else
 				{
 				push @skip, $algo;
+				# fix-up crypto/directory name(s)
+				@skip[$#skip]="whrlpool" if $algo eq "whirlpool";
 				print " (skip dir)";
 
 				$depflags .= " -DOPENSSL_NO_$ALGO";
@@ -1391,14 +1393,6 @@ if (!$IsMK1MF)
 		}
 	}
 
-if (!defined($disabled{"sctp"}))
-	{
-	if ($target =~ /^solaris/)
-		{
-		$cflags = "$cflags -D_XPG4_2 -D__EXTENSIONS__";
-		}
-	}
-
 $cpuid_obj.=" uplink.o uplink-x86.o" if ($cflags =~ /\-DOPENSSL_USE_APPLINK/);
 
 #
@@ -1521,7 +1515,7 @@ else	{
 	$aes_obj=$aes_enc;
 	}
 $wp_obj="" if ($wp_obj =~ /mmx/ && $processor eq "386");
-if ($wp_obj =~ /\.o$/)
+if ($wp_obj =~ /\.o$/ && !$disabled{"whirlpool"})
 	{
 	$cflags.=" -DWHIRLPOOL_ASM";
 	}
