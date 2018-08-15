@@ -143,9 +143,15 @@
 #endif
 #include <openssl/err.h>
 #include <openssl/rand.h>
+#ifndef OPENSSL_NO_RSA
 #include <openssl/rsa.h>
+#endif
+#ifndef OPENSSL_NO_DSA
 #include <openssl/dsa.h>
+#endif
+#ifndef OPENSSL_NO_DH
 #include <openssl/dh.h>
+#endif
 #include <openssl/bn.h>
 
 #define _XOPEN_SOURCE_EXTENDED	1 /* Or gethostname won't be declared properly
@@ -218,6 +224,7 @@ static const char rnd_seed[] = "string to make the random number generator think
 
 int doit_biopair(SSL *s_ssl,SSL *c_ssl,long bytes,clock_t *s_time,clock_t *c_time);
 int doit(SSL *s_ssl,SSL *c_ssl,long bytes);
+static int do_test_cipherlist(void);
 static void sv_usage(void)
 	{
 	fprintf(stderr,"usage: ssltest [args ...]\n");
@@ -266,6 +273,7 @@ static void sv_usage(void)
 	               "                 Use \"openssl ecparam -list_curves\" for all names\n"  \
 	               "                 (default is sect163r2).\n");
 #endif
+	fprintf(stderr," -test_cipherlist - verifies the order of the ssl cipher lists\n");
 	}
 
 static void print_details(SSL *c_ssl, const char *prefix)
@@ -375,6 +383,7 @@ static void lock_dbg_cb(int mode, int type, const char *file, int line)
 		}
 	}
 
+
 int main(int argc, char *argv[])
 	{
 	char *CApath=NULL,*CAfile=NULL;
@@ -390,7 +399,9 @@ int main(int argc, char *argv[])
 	char *server_key=NULL;
 	char *client_cert=TEST_CLIENT_CERT;
 	char *client_key=NULL;
+#ifndef OPENSSL_NO_ECDH
 	char *named_curve = NULL;
+#endif
 	SSL_CTX *s_ctx=NULL;
 	SSL_CTX *c_ctx=NULL;
 	SSL_METHOD *meth=NULL;
@@ -409,8 +420,11 @@ int main(int argc, char *argv[])
 	int print_time = 0;
 	clock_t s_time = 0, c_time = 0;
 	int comp = 0;
+#ifndef OPENSSL_NO_COMP
 	COMP_METHOD *cm = NULL;
+#endif
 	STACK_OF(SSL_COMP) *ssl_comp_methods = NULL;
+	int test_cipherlist = 0;
 
 	verbose = 0;
 	debug = 0;
@@ -586,6 +600,10 @@ int main(int argc, char *argv[])
 			{
 			app_verify_arg.allow_proxy_certs = 1;
 			}
+		else if (strcmp(*argv,"-test_cipherlist") == 0)
+			{
+			test_cipherlist = 1;
+			}
 		else
 			{
 			fprintf(stderr,"unknown option %s\n",*argv);
@@ -599,6 +617,15 @@ int main(int argc, char *argv[])
 		{
 bad:
 		sv_usage();
+		goto end;
+		}
+
+	if (test_cipherlist == 1)
+		{
+		/* ensure that the cipher list are correctly sorted and exit */
+		if (do_test_cipherlist() == 0)
+			EXIT(1);
+		ret = 0;
 		goto end;
 		}
 
@@ -627,6 +654,7 @@ bad:
 	SSL_library_init();
 	SSL_load_error_strings();
 
+#ifndef OPENSSL_NO_COMP
 	if (comp == COMP_ZLIB) cm = COMP_zlib();
 	if (comp == COMP_RLE) cm = COMP_rle();
 	if (cm != NULL)
@@ -663,6 +691,7 @@ bad:
 			fprintf(stderr, "  %d: %s\n", c->id, c->name);
 			}
 	}
+#endif
 
 #if !defined(OPENSSL_NO_SSL2) && !defined(OPENSSL_NO_SSL3)
 	if (ssl2)
@@ -885,6 +914,7 @@ end:
 	CRYPTO_mem_leaks(bio_err);
 	if (bio_err != NULL) BIO_free(bio_err);
 	EXIT(ret);
+	return ret;
 	}
 
 int doit_biopair(SSL *s_ssl, SSL *c_ssl, long count,
@@ -2203,5 +2233,58 @@ static DH *get_dh1024dsa()
 		{ DH_free(dh); return(NULL); }
 	dh->length = 160;
 	return(dh);
+	}
+
+static int do_test_cipherlist(void)
+	{
+	int i = 0;
+	const SSL_METHOD *meth;
+	SSL_CIPHER *ci, *tci = NULL;
+
+	fprintf(stderr, "testing SSLv2 cipher list order: ");
+	meth = SSLv2_method();
+	while ((ci = meth->get_cipher(i++)) != NULL)
+		{
+		if (tci != NULL)
+			if (ci->id >= tci->id)
+				{
+				fprintf(stderr, "failed %lx vs. %lx\n", ci->id, tci->id);
+				return 0;
+				}
+		tci = ci;
+		}
+	fprintf(stderr, "ok\n");
+
+	fprintf(stderr, "testing SSLv3 cipher list order: ");
+	meth = SSLv3_method();
+	tci = NULL;
+	while ((ci = meth->get_cipher(i++)) != NULL)
+		{
+		if (tci != NULL)
+			if (ci->id >= tci->id)
+				{
+				fprintf(stderr, "failed %lx vs. %lx\n", ci->id, tci->id);
+				return 0;
+				}
+		tci = ci;
+		}
+	fprintf(stderr, "ok\n");
+
+	fprintf(stderr, "testing TLSv1 cipher list order: ");
+	meth = TLSv1_method();
+	tci = NULL;
+	while ((ci = meth->get_cipher(i++)) != NULL)
+		{
+		if (tci != NULL)
+			if (ci->id >= tci->id)
+				{
+				fprintf(stderr, "failed %lx vs. %lx\n", ci->id, tci->id);
+				return 0;
+				}
+		tci = ci;
+		}
+	fprintf(stderr, "ok\n");
+
+	return 1;
 	}
 #endif

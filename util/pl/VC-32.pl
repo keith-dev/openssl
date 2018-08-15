@@ -1,5 +1,6 @@
 #!/usr/local/bin/perl
-# VCw32lib.pl - the file for Visual C++ 4.[01] for windows NT, static libraries
+# VC-32.pl - unified script for Microsoft Visual C++, covering Win32,
+# Win64 and WinCE [follow $FLAVOR variable to trace the differences].
 #
 
 $ssl=	"ssleay32";
@@ -21,30 +22,93 @@ if ($FLAVOR =~ /WIN64/)
     #
     # Amount of latter type is minimized by aliasing strlen to function of
     # own desing and limiting its return value to 2GB-1 (see e_os.h). As
-    # per 0.9.8 release remaining warnings were explicitly examines and
+    # per 0.9.8 release remaining warnings were explicitly examined and
     # considered safe to ignore.
     # 
-    $cflags=' /MD /W3 /Ox /Gs0 /GF /Gy /nologo -DWIN32_LEAN_AND_MEAN -DL_ENDIAN -DDSO_WIN32 -DOPENSSL_SYSNAME_WIN32 -DOPENSSL_SYSNAME_WINNT -DUNICODE -D_UNICODE';
+    $base_cflags=' /W3 /Gs0 /GF /Gy /nologo -DWIN32_LEAN_AND_MEAN -DL_ENDIAN -DDSO_WIN32 -DOPENSSL_SYSNAME_WIN32 -DOPENSSL_SYSNAME_WINNT -DUNICODE -D_UNICODE';
+    $base_cflags.=' -D_CRT_SECURE_NO_DEPRECATE'; # shut up VC8
+    $opt_cflags=' /MD /Ox';
+    $dbg_cflags=' /MDd /Od -DDEBUG -D_DEBUG';
     $lflags="/nologo /subsystem:console /opt:ref";
     }
-else
+elsif ($FLAVOR =~ /CE/)
     {
-    $cflags=' /MD /W3 /WX /G5 /Ox /O2 /Ob2 /Gs0 /GF /Gy /nologo -DOPENSSL_SYSNAME_WIN32 -DWIN32_LEAN_AND_MEAN -DL_ENDIAN -DDSO_WIN32';
+    # sanity check
+    die '%OSVERSION% is not defined'	if (!defined($ENV{'OSVERSION'}));
+    die '%PLATFORM% is not defined'	if (!defined($ENV{'PLATFORM'}));
+    die '%TARGETCPU% is not defined'	if (!defined($ENV{'TARGETCPU'}));
+
+    #
+    # Idea behind this is to mimic flags set by eVC++ IDE...
+    #
+    $wcevers = $ENV{'OSVERSION'};			# WCENNN
+    die '%OSVERSION% value is insane'	if ($wcevers !~ /^WCE([1-9])([0-9]{2})$/);
+    $wcecdefs = "-D_WIN32_WCE=$1$2 -DUNDER_CE=$1$2";	# -D_WIN32_WCE=NNN
+    $wcelflag = "/subsystem:windowsce,$1.$2";		# ...,N.NN
+
+    $wceplatf =  $ENV{'PLATFORM'};
+    $wceplatf =~ tr/a-z0-9 /A-Z0-9_/d;
+    $wcecdefs .= " -DWCE_PLATFORM_$wceplatf";
+
+    $wcetgt = $ENV{'TARGETCPU'};	# just shorter name...
+    SWITCH: for($wcetgt) {
+	/^X86/		&& do {	$wcecdefs.=" -Dx86 -D_X86_ -D_i386_ -Di_386_";
+				$wcelflag.=" /machine:IX86";	last; };
+	/^ARMV4[IT]/	&& do { $wcecdefs.=" -DARM -D_ARM_ -D$wcetgt";
+				$wcecdefs.=" -DTHUMB -D_THUMB_" if($wcetgt=~/T$/);
+				$wcecdefs.=" -QRarch4T -QRinterwork-return";
+				$wcelflag.=" /machine:THUMB";	last; };
+	/^ARM/		&& do {	$wcecdefs.=" -DARM -D_ARM_ -D$wcetgt";
+				$wcelflag.=" /machine:ARM";	last; };
+	/^MIPSIV/	&& do {	$wcecdefs.=" -DMIPS -D_MIPS_ -DR4000 -D$wcetgt";
+				$wcecdefs.=" -D_MIPS64 -QMmips4 -QMn32";
+				$wcelflag.=" /machine:MIPSFPU";	last; };
+	/^MIPS16/	&& do {	$wcecdefs.=" -DMIPS -D_MIPS_ -DR4000 -D$wcetgt";
+				$wcecdefs.=" -DMIPSII -QMmips16";
+				$wcelflag.=" /machine:MIPS16";	last; };
+	/^MIPSII/	&& do {	$wcecdefs.=" -DMIPS -D_MIPS_ -DR4000 -D$wcetgt";
+				$wcecdefs.=" -QMmips2";
+				$wcelflag.=" /machine:MIPS";	last; };
+	/^R4[0-9]{3}/	&& do {	$wcecdefs.=" -DMIPS -D_MIPS_ -DR4000";
+				$wcelflag.=" /machine:MIPS";	last; };
+	/^SH[0-9]/	&& do {	$wcecdefs.=" -D$wcetgt -D_$wcetgt_ -DSHx";
+				$wcecdefs.=" -Qsh4" if ($wcetgt =~ /^SH4/);
+				$wcelflag.=" /machine:$wcetgt";	last; };
+	{ $wcecdefs.=" -D$wcetgt -D_$wcetgt_";
+	  $wcelflag.=" /machine:$wcetgt";			last; };
+    }
+
+    $cc='$(CC)';
+    $base_cflags=' /W3 /WX /GF /Gy /nologo -DUNICODE -D_UNICODE -DOPENSSL_SYSNAME_WINCE -DWIN32_LEAN_AND_MEAN -DL_ENDIAN -DDSO_WIN32 -DNO_CHMOD -I$(WCECOMPAT)/include -DOPENSSL_SMALL_FOOTPRINT';
+    $base_cflags.=" $wcecdefs";
+    $opt_cflags=' /MC /O1i';	# optimize for space, but with intrinsics...
+    $dbg_clfags=' /MC /Od -DDEBUG -D_DEBUG';
+    $lflags="/nologo /opt:ref $wcelflag";
+    }
+else	# Win32
+    {
+    $base_cflags=' /W3 /WX /Gs0 /GF /Gy /nologo -DOPENSSL_SYSNAME_WIN32 -DWIN32_LEAN_AND_MEAN -DL_ENDIAN -DDSO_WIN32';
+    $base_cflags.=' -D_CRT_SECURE_NO_DEPRECATE';	# shut up VC8
+    $opt_cflags=' /MD /Ox /O2 /Ob2';
+    $dbg_cflags=' /MDd /Od -DDEBUG -D_DEBUG';
     $lflags="/nologo /subsystem:console /machine:I386 /opt:ref";
     }
 $mlflags='';
 
-$out_def="out32";
-$tmp_def="tmp32";
+$out_def="out32"; $out_def.='_$(TARGETCPU)' if ($FLAVOR =~ /CE/);
+$tmp_def="tmp32"; $tmp_def.='_$(TARGETCPU)' if ($FLAVOR =~ /CE/);
 $inc_def="inc32";
 
 if ($debug)
 	{
-	$cflags=" /MDd /W3 /WX /Zi /Yd /Od /nologo -DOPENSSL_SYSNAME_WIN32 -D_DEBUG -DL_ENDIAN -DWIN32_LEAN_AND_MEAN -DDEBUG -DDSO_WIN32";
+	$cflags=$dbg_cflags.$base_cflags;
 	$lflags.=" /debug";
 	$mlflags.=' /debug';
 	}
-$cflags .= " -DOPENSSL_SYSNAME_WINNT" if $NT == 1;
+else
+	{
+	$cflags=$opt_cflags.$base_cflags;
+	}
 
 $obj='.obj';
 $ofile="/Fo";
@@ -54,10 +118,28 @@ $link="link";
 $rsc="rc";
 $efile="/out:";
 $exep='.exe';
-if ($no_sock)
-	{ $ex_libs=""; }
-else	{ $ex_libs="wsock32.lib user32.lib gdi32.lib"; }
-$ex_libs="$ex_libs bufferoverflowu.lib" if ($FLAVOR =~ /WIN64/);
+if ($no_sock)		{ $ex_libs=''; }
+elsif ($FLAVOR =~ /CE/)	{ $ex_libs='winsock.lib'; }
+else			{ $ex_libs='wsock32.lib'; }
+
+if ($FLAVOR =~ /CE/)
+	{
+	$ex_libs.=' $(WCECOMPAT)/lib/wcecompatex.lib';
+	$ex_libs.=' /nodefaultlib:oldnames.lib coredll.lib corelibc.lib' if ($ENV{'TARGETCPU'} eq "X86");
+	}
+else
+	{
+	$ex_libs.=' gdi32.lib advapi32.lib user32.lib';
+	$ex_libs.=' bufferoverflowu.lib' if ($FLAVOR =~ /WIN64/);
+	}
+
+# As native NT API is pure UNICODE, our WIN-NT build defaults to UNICODE,
+# but gets linked with unicows.lib to ensure backward compatibility.
+if ($FLAVOR =~ /NT/)
+	{
+	$cflags.=" -DOPENSSL_SYSNAME_WINNT -DUNICODE -D_UNICODE";
+	$ex_libs="unicows.lib $ex_libs";
+	}
 
 # static library stuff
 $mklib='lib';
@@ -68,7 +150,7 @@ $shlibp=($shlib)?".dll":".lib";
 $lfile='/out:';
 
 $shlib_ex_obj="";
-$app_ex_obj="setargv.obj";
+$app_ex_obj="setargv.obj" if ($FLAVOR !~ /CE/);
 if ($nasm) {
 	$asm='nasmw -f win32';
 	$afile='-o ';
@@ -108,7 +190,7 @@ if (!$no_asm)
 	$cflags.=" -DBN_ASM -DMD5_ASM -DSHA1_ASM -DRMD160_ASM";
 	}
 
-if ($shlib)
+if ($shlib && $FLAVOR !~ /CE/)
 	{
 	$mlflags.=" $lflags /dll";
 #	$cflags =~ s| /MD| /MT|;
@@ -140,6 +222,13 @@ ___
 CRYPTOOBJ=ms\uptable.obj $(CRYPTOOBJ)
 ___
 	}
+elsif ($shlib && $FLAVOR =~ /CE/)
+	{
+	$mlflags.=" $lflags /dll";
+	$lib_cflag=" -D_WINDLL -D_DLL";
+	$out_def='out32dll_$(TARGETCPU)';
+	$tmp_def='tmp32dll_$(TARGETCPU)';
+	}
 
 $cflags.=" /Fd$out_def";
 
@@ -156,14 +245,22 @@ sub do_lib_rule
 	if (!$shlib)
 		{
 #		$ret.="\t\$(RM) \$(O_$Name)\n";
-		$ex =' advapi32.lib';
+		$ex =' ';
 		$ret.="\t\$(MKLIB) $lfile$target @<<\n  $objs $ex\n<<\n";
 		}
 	else
 		{
 		local($ex)=($target =~ /O_SSL/)?' $(L_CRYPTO)':'';
-		$ex.=' wsock32.lib gdi32.lib advapi32.lib user32.lib';
-		$ex.=' bufferoverflowu.lib' if ($FLAVOR =~ /WIN64/);
+		if ($FLAVOR =~ /CE/)
+			{
+			$ex.=' winsock.lib $(WCECOMPAT)/lib/wcecompatex.lib';
+			}
+		else
+			{
+			$ex.=' unicows.lib' if ($FLAVOR =~ /NT/);
+			$ex.=' wsock32.lib gdi32.lib advapi32.lib user32.lib';
+			$ex.=' bufferoverflowu.lib' if ($FLAVOR =~ /WIN64/);
+			}
 		$ret.="\t\$(LINK) \$(MLFLAGS) $efile$target /def:ms/${Name}.def @<<\n  \$(SHLIB_EX_OBJ) $objs $ex\n<<\n";
 		}
 	$ret.="\n";

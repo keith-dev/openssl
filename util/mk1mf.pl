@@ -128,10 +128,6 @@ if (($platform =~ /VC-(.+)/))
 	$NT = 1 if $1 eq "NT";
 	require 'VC-32.pl';
 	}
-elsif ($platform eq "VC-CE")
-	{
-	require 'VC-CE.pl';
-	}
 elsif ($platform eq "Mingw32")
 	{
 	require 'Mingw32.pl';
@@ -317,14 +313,6 @@ $defs= <<"EOF";
 EOF
 
 $defs .= $preamble if defined $preamble;
-
-if ($platform eq "VC-CE")
-	{
-	$defs.= <<"EOF";
-!INCLUDE <\$(WCECOMPAT)/wcedefs.mak>
-
-EOF
-	}
 
 $defs.= <<"EOF";
 INSTALLTOP=$INSTALLTOP
@@ -966,6 +954,7 @@ sub read_options
 				}
 			}
 		}
+	elsif (/^no-comp$/) { $xcflags = "-DOPENSSL_NO_COMP $xcflags"; }
 	elsif (/^enable-zlib$/) { $xcflags = "-DZLIB $xcflags"; }
 	elsif (/^enable-zlib-dynamic$/)
 		{

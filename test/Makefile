@@ -265,6 +265,7 @@ test_engine:
 test_ssl: keyU.ss certU.ss certCA.ss certP1.ss keyP1.ss certP2.ss keyP2.ss \
 		intP1.ss intP2.ss
 	@echo "test SSL protocol"
+	../util/shlib_wrap.sh ./$(SSLTEST) -test_cipherlist
 	@sh ./testssl keyU.ss certU.ss certCA.ss
 	@sh ./testsslproxy keyP1.ss certP1.ss intP1.ss
 	@sh ./testsslproxy keyP2.ss certP2.ss intP2.ss
@@ -471,21 +472,16 @@ ecdhtest.o: ../include/openssl/rand.h ../include/openssl/safestack.h
 ecdhtest.o: ../include/openssl/sha.h ../include/openssl/stack.h
 ecdhtest.o: ../include/openssl/symhacks.h ecdhtest.c
 ecdsatest.o: ../include/openssl/asn1.h ../include/openssl/bio.h
-ecdsatest.o: ../include/openssl/bn.h ../include/openssl/buffer.h
-ecdsatest.o: ../include/openssl/crypto.h ../include/openssl/dh.h
-ecdsatest.o: ../include/openssl/dsa.h ../include/openssl/e_os2.h
-ecdsatest.o: ../include/openssl/ec.h ../include/openssl/ecdh.h
+ecdsatest.o: ../include/openssl/bn.h ../include/openssl/crypto.h
+ecdsatest.o: ../include/openssl/e_os2.h ../include/openssl/ec.h
 ecdsatest.o: ../include/openssl/ecdsa.h ../include/openssl/engine.h
 ecdsatest.o: ../include/openssl/err.h ../include/openssl/evp.h
 ecdsatest.o: ../include/openssl/lhash.h ../include/openssl/obj_mac.h
 ecdsatest.o: ../include/openssl/objects.h ../include/openssl/opensslconf.h
 ecdsatest.o: ../include/openssl/opensslv.h ../include/openssl/ossl_typ.h
-ecdsatest.o: ../include/openssl/pkcs7.h ../include/openssl/rand.h
-ecdsatest.o: ../include/openssl/rsa.h ../include/openssl/safestack.h
-ecdsatest.o: ../include/openssl/sha.h ../include/openssl/stack.h
-ecdsatest.o: ../include/openssl/store.h ../include/openssl/symhacks.h
-ecdsatest.o: ../include/openssl/ui.h ../include/openssl/x509.h
-ecdsatest.o: ../include/openssl/x509_vfy.h ecdsatest.c
+ecdsatest.o: ../include/openssl/rand.h ../include/openssl/safestack.h
+ecdsatest.o: ../include/openssl/stack.h ../include/openssl/symhacks.h
+ecdsatest.o: ecdsatest.c
 ectest.o: ../e_os.h ../include/openssl/asn1.h ../include/openssl/bio.h
 ectest.o: ../include/openssl/bn.h ../include/openssl/crypto.h
 ectest.o: ../include/openssl/e_os2.h ../include/openssl/ec.h
