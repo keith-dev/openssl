@@ -2,6 +2,14 @@
  OpenSSL CHANGES
  _______________
 
+ Changes between 0.9.8s and 0.9.8t [18 Jan 2012]
+
+  *) Fix for DTLS DoS issue introduced by fix for CVE-2011-4109.
+     Thanks to Antonio Martin, Enterprise Secure Access Research and
+     Development, Cisco Systems, Inc. for discovering this bug and
+     preparing a fix. (CVE-2012-0050)
+     [Antonio Martin]
+
  Changes between 0.9.8r and 0.9.8s [4 Jan 2012]
 
   *) Nadhem Alfardan and Kenny Paterson have discovered an extension
@@ -25,7 +33,9 @@
      (CVE-2011-4576)
      [Adam Langley (Google)]
 
-  *) Only allow one SGC handshake restart for SSL/TLS. (CVE-2011-4619)
+  *) Only allow one SGC handshake restart for SSL/TLS. Thanks to George
+     Kadianakis <desnacked@gmail.com> for discovering this issue and
+     Adam Langley for preparing the fix. (CVE-2011-4619)
      [Adam Langley (Google)]
  
   *) Prevent malformed RFC3779 data triggering an assertion failure.
