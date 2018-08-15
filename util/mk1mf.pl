@@ -18,6 +18,8 @@ my $fips_premain_dso_exe_path = "";
 my $fips_premain_c_path = "";
 my $fips_sha1_exe_path = "";
 
+local $fipscanisterbuild = 0;
+
 my $fipslibdir = "";
 my $baseaddr = "";
 
@@ -277,7 +279,8 @@ $ex_libs="$l_flags$ex_libs" if ($l_flags ne "");
 
 
 %shlib_ex_cflags=("SSL" => " -DOPENSSL_BUILD_SHLIBSSL",
-		  "CRYPTO" => " -DOPENSSL_BUILD_SHLIBCRYPTO");
+		  "CRYPTO" => " -DOPENSSL_BUILD_SHLIBCRYPTO",
+		  "FIPS" => " -DOPENSSL_BUILD_SHLIBCRYPTO");
 
 if ($msdos)
 	{
@@ -315,7 +318,7 @@ for (;;)
  				$uc =~ s/^lib(.*)\.a/$1/;
  				$uc =~ tr/a-z/A-Z/;
 				}
-			if (($uc ne "FIPS") || $fips_canister_build)
+			if (($uc ne "FIPS") || $fipscanisterbuild)
 				{
 				$lib_nam{$uc}=$uc;
 				$lib_obj{$uc}.=$libobj." ";
@@ -360,6 +363,11 @@ for (;;)
 	if ($key eq "LIBOBJ")
 		{ $libobj=&var_add($dir,$val); }
 
+	if ($key eq "FIPS_EX_OBJ")
+		{ 
+		$fips_ex_obj=&var_add("crypto",$val);
+		}
+
 	if ($key eq "FIPSLIBDIR")
 		{ $fipslibdir=$val;}
 
@@ -371,14 +379,55 @@ for (;;)
 	}
 close(IN);
 
-if ($fips_canister_path eq "")
+
+if ($fips)
 	{
-	$fips_canister_path = "\$(FIPSLIB_D)${o}fipscanister.o";
+	 
+	foreach (split " ", $fips_ex_obj)
+		{
+		$fips_exclude_obj{$1} = 1 if (/\/([^\/]*)$/);
+		}
+
+	$fips_exclude_obj{"bn_asm"} = 1;
+
+	my @ltmp = split " ", $lib_obj{"CRYPTO"};
+
+
+	$lib_obj{"CRYPTO"} = "";
+
+	foreach(@ltmp)
+		{
+		if (/\/([^\/]*)$/ && exists $fips_exclude_obj{$1})
+			{
+			if ($fipscanisterbuild)
+				{
+				$lib_obj{"FIPS"} .= "$_ ";
+				}
+			}
+		else
+			{
+			$lib_obj{"CRYPTO"} .= "$_ ";
+			}
+		}
+
 	}
 
-if ($fips_premain_c_path eq "")
+if ($fipscanisterbuild)
 	{
-	$fips_premain_c_path = "\$(FIPSLIB_D)${o}fips_premain.c";
+	$fips_canister_path = "\$(LIB_D)${o}fipscanister.o";
+	$fips_premain_c_path = "\$(LIB_D)${o}fips_premain.c";
+	}
+else
+	{
+	if ($fips_canister_path eq "")
+		{
+		$fips_canister_path = "\$(FIPSLIB_D)${o}fipscanister.o";
+		}
+
+	if ($fips_premain_c_path eq "")
+		{
+		$fips_premain_c_path = "\$(FIPSLIB_D)${o}fips_premain.c";
+		}
 	}
 
 if ($fips)
@@ -408,16 +457,23 @@ if ($fips)
 		$ex_build_targets .= " \$(LIB_D)$o$crypto_compat \$(PREMAIN_DSO_EXE)";
 		$ex_l_libs .= " \$(O_FIPSCANISTER)";
 		}
-	if ($fipslibdir eq "")
+	if ($fipscanisterbuild)
 		{
-		open (IN, "util/fipslib_path.txt") || fipslib_error();
-		$fipslibdir = <IN>;
-		chomp $fipslibdir;
-		close IN;
+		$fipslibdir = "\$(LIB_D)";
 		}
-	fips_check_files($fipslibdir,
-			"fipscanister.o", "fipscanister.o.sha1",
-			"fips_premain.c", "fips_premain.c.sha1");
+	else
+		{
+		if ($fipslibdir eq "")
+			{
+			open (IN, "util/fipslib_path.txt") || fipslib_error();
+			$fipslibdir = <IN>;
+			chomp $fipslibdir;
+			close IN;
+			}
+		fips_check_files($fipslibdir,
+				"fipscanister.o", "fipscanister.o.sha1",
+				"fips_premain.c", "fips_premain.c.sha1");
+		}
 	}
 	
 
@@ -684,7 +740,7 @@ $rules.=&do_compile_rule("\$(OBJ_D)",$e_exe,'-DMONOLITH $(APP_CFLAGS)');
 
 if ($fips)
 	{
-	if ($fips_canister_build)
+	if ($fipscanisterbuild)
 		{
 		$rules.=&cc_compile_target("\$(OBJ_D)${o}fips_start$obj",
 			"fips-1.0${o}fips_canister.c",
@@ -697,7 +753,7 @@ if ($fips)
 		"\$(SHLIB_CFLAGS)");
 	$rules.=&cc_compile_target("\$(OBJ_D)${o}fips_sha1dgst$obj",
 		"fips-1.0${o}sha${o}fips_sha1dgst.c",
-		"\$(SHLIB_CFLAGS)") unless $fips_canister_build;
+		"\$(SHLIB_CFLAGS)") unless $fipscanisterbuild;
 	$rules.=&cc_compile_target("\$(OBJ_D)${o}\$(E_PREMAIN_DSO)$obj",
 		"fips-1.0${o}fips_premain.c",
 		"-DFINGERPRINT_PREMAIN_DSO_LOAD \$(SHLIB_CFLAGS)");
@@ -807,7 +863,7 @@ if ($fips)
 
 if ($fips)
 	{
-	$rules.= &do_rlink_rule("\$(O_FIPSCANISTER)", "\$(OBJ_D)${o}fips_start$obj \$(FIPSOBJ) \$(OBJ_D)${o}fips_end$obj", "\$(FIPSLIB_D)${o}fips_standalone_sha1$exep", "") if $fips_canister_build;
+	$rules.= &do_rlink_rule("\$(O_FIPSCANISTER)", "\$(OBJ_D)${o}fips_start$obj \$(FIPSOBJ) \$(OBJ_D)${o}fips_end$obj", "\$(FIPS_SHA1_EXE)", "") if $fipscanisterbuild;
 	$rules.=&do_link_rule("\$(PREMAIN_DSO_EXE)","\$(OBJ_D)${o}\$(E_PREMAIN_DSO)$obj \$(CRYPTOOBJ) \$(O_FIPSCANISTER)","","\$(EX_LIBS)", 1);
 	
 	$rules.=&do_link_rule("\$(FIPS_SHA1_EXE)","\$(OBJ_D)${o}fips_standalone_sha1$obj \$(OBJ_D)${o}fips_sha1dgst$obj","","", 1);
@@ -1127,6 +1183,10 @@ sub read_options
 				$xcflags="-DKRB5_MIT_OLD11 $xcflags"
 				}
 			}
+		}
+	elsif (/^--fipscanisterbuild$/)
+		{
+		$fipscanisterbuild=1;
 		}
 	elsif (/^([^=]*)=(.*)$/){ $VARS{$1}=$2; }
 	elsif (/^-[lL].*$/)	{ $l_flags.="$_ "; }

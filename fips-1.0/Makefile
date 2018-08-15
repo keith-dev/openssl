@@ -17,6 +17,9 @@ MAKEDEPEND=	$(TOP)/util/domd $(TOP) -MD $(MAKEDEPPROG)
 PERL=		perl
 RM=             rm -f
 AR=		ar r
+ARD=		ar d
+
+FIPSCANLOC=	$(FIPSLIBDIR)fipscanister.o
 
 PEX_LIBS=
 EX_LIBS=
@@ -32,8 +35,8 @@ GENERAL=Makefile README fips-lib.com install.com
 
 LIB= $(TOP)/libcrypto.a
 SHARED_LIB= libcrypto$(SHLIB_EXT)
-LIBSRC=fips.c fips_err_wrapper.c fipshashes.c
-LIBOBJ=fips.o fips_err_wrapper.o fipshashes.o
+LIBSRC=fips.c fips_err_wrapper.c
+LIBOBJ=fips.o fips_err_wrapper.o
 
 FIPS_OBJ_LISTS=sha/lib hmac/lib rand/lib des/lib aes/lib dsa/lib rsa/lib dh/lib
 
@@ -51,12 +54,8 @@ top:
 
 all:
 	@if egrep 'define OPENSSL_FIPS' $(TOP)/include/openssl/opensslconf.h > /dev/null; then \
-		$(MAKE) -e subdirs check lib shared; \
+		$(MAKE) -e subdirs lib shared; \
 	fi
-
-check:
-#	$(PERL) ../util/checkhash.pl || (rm fipscanister.o* 2>/dev/null; exit 1)
-	echo FIPS module not built: no check done
 
 # Idea behind fipscanister.o is to "seize" the sequestered code between
 # known symbols for fingerprinting purposes, which would be commonly
@@ -74,7 +73,8 @@ check:
 # vendor compiler drivers...
 
 fipscanister.o: fips_start.o $(LIBOBJ) $(FIPS_OBJ_LISTS) fips_end.o
-	@objs="fips_start.o $(LIBOBJ)"; \
+	@FIPS_BN_ASM=`for i in $(BN_ASM) ; do echo -n "../crypto/bn/$$i " ; done`; \
+	objs="fips_start.o $(LIBOBJ) $(FIPS_EX_OBJ) $$FIPS_BN_ASM"; \
 	for i in $(FIPS_OBJ_LISTS); do \
 		dir=`dirname $$i`; script="s|^|$$dir/|;s| | $$dir/|g"; \
 		objs="$$objs `sed "$$script" $$i`"; \
@@ -131,8 +131,8 @@ links:
 	$(MAKE) CC='$(CC)' INCLUDES='${INCLUDES}' CFLAG='${CFLAG}' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' FIPS_DES_ENC='${FIPS_DES_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' FIPS_SHA1_ASM_OBJ='${FIPS_SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' AR='${AR}' PERL='${PERL}' links ); \
 	done;
 
-lib:	$(FIPSLIBDIR)/fipscanister.o
-	$(AR) $(LIB) $(FIPSLIBDIR)/fipscanister.o
+lib:	$(FIPSCANLOC) delexobj
+	$(AR) $(LIB) $(FIPSCANLOC)
 	$(RANLIB) $(LIB) || echo Never mind.
 	@touch lib
 
@@ -152,7 +152,6 @@ tests:
 	(cd ..; make DIRS=test)
 
 fips_test: top tests
-	-cd testvectors && perl -p -i -e 's/COUNT=/COUNT = /' des[23]/req/*.req
 	@for i in dsa sha aes des hmac rand rsa; \
 	do \
 		(cd $$i && echo "making fips_test in fips/$$i..." && $(MAKE) fips_test) \
@@ -177,9 +176,8 @@ install:
 		mv -f $(INSTALL_PREFIX)$(INSTALLTOP)/bin/$$i.new $(INSTALL_PREFIX)$(INSTALLTOP)/bin/$$i; \
 	done
 	@cp -p -f fipscanister.o fipscanister.o.sha1 fips_premain.c \
+		fips_premain.c.sha1 \
 		$(INSTALL_PREFIX)$(INSTALLTOP)/lib/; \
-	strings fipscanister.o | grep "HMAC-SHA1(fips_premain\\.c)" > \
-		$(INSTALL_PREFIX)$(INSTALLTOP)/lib/fips_premain.c.sha1; \
 	chmod 0444 $(INSTALL_PREFIX)$(INSTALLTOP)/lib/fips*
 
 lint:
@@ -200,7 +198,7 @@ depend:
 	done;
 
 clean:
-	rm -f buildinf.h *.o *.obj fips_premain_dso$(EXE_EXT) lib tags core .pure .nfs* *.old *.bak fluff
+	rm -f buildinf.h *.o fipscanister.o.sha1 *.obj fips_premain_dso$(EXE_EXT) lib tags core .pure .nfs* *.old *.bak fluff
 	@for i in $(FDIRS) ;\
 	do \
 	(cd $$i && echo "making clean in fips/$$i..." && \
@@ -215,6 +213,145 @@ dclean:
 	(cd $$i && echo "making dclean in fips/$$i..." && \
 	$(MAKE) PERL='${PERL}' CC='$(CC)' CFLAG='${CFLAG}' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' dclean ); \
 	done;
+
+delexobj:
+	exdel=""; \
+	for i in $(FIPS_EX_OBJ) $(BN_ASM);\
+	do \
+	exdel="$$exdel "`basename $$i`""; \
+	done ; \
+	$(ARD) $(LIB) $$exdel
+
+FIPS_EX_OBJ= ../crypto/aes/aes_cbc.o \
+	../crypto/aes/aes_cfb.o \
+	../crypto/aes/aes_ecb.o \
+	../crypto/aes/aes_ofb.o \
+	../crypto/asn1/a_bitstr.o \
+	../crypto/asn1/a_bytes.o \
+	../crypto/asn1/a_dup.o \
+	../crypto/asn1/a_int.o \
+	../crypto/asn1/a_object.o \
+	../crypto/asn1/asn1_err.o \
+	../crypto/asn1/asn1_lib.o \
+	../crypto/asn1/a_type.o \
+	../crypto/asn1/evp_asn1.o \
+	../crypto/asn1/tasn_dec.o \
+	../crypto/asn1/tasn_enc.o \
+	../crypto/asn1/tasn_fre.o \
+	../crypto/asn1/tasn_new.o \
+	../crypto/asn1/tasn_typ.o \
+	../crypto/asn1/tasn_utl.o \
+	../crypto/asn1/t_pkey.o \
+	../crypto/asn1/x_algor.o \
+	../crypto/asn1/x_bignum.o \
+	../crypto/asn1/x_long.o \
+	../crypto/asn1/x_sig.o \
+	../crypto/bio/bio_err.o \
+	../crypto/bio/bio_lib.o \
+	../crypto/bio/b_print.o \
+	../crypto/bio/bss_file.o \
+	../crypto/bn/bn_add.o \
+	../crypto/bn/bn_blind.o \
+	../crypto/bn/bn_ctx.o \
+	../crypto/bn/bn_div.o \
+	../crypto/bn/bn_err.o \
+	../crypto/bn/bn_exp2.o \
+	../crypto/bn/bn_exp.o \
+	../crypto/bn/bn_gcd.o \
+	../crypto/bn/bn_lib.o \
+	../crypto/bn/bn_mod.o \
+	../crypto/bn/bn_mont.o \
+	../crypto/bn/bn_mul.o \
+	../crypto/bn/bn_prime.o \
+	../crypto/bn/bn_print.o \
+	../crypto/bn/bn_rand.o \
+	../crypto/bn/bn_recp.o \
+	../crypto/bn/bn_shift.o \
+	../crypto/bn/bn_sqr.o \
+	../crypto/bn/bn_word.o \
+	../crypto/bn/bn_x931p.o \
+	../crypto/buffer/buf_err.o \
+	../crypto/buffer/buffer.o \
+	../crypto/conf/conf_err.o \
+	../crypto/cpt_err.o \
+	../crypto/cryptlib.o \
+	../crypto/des/cfb64ede.o \
+	../crypto/des/cfb64enc.o \
+	../crypto/des/cfb_enc.o \
+	../crypto/des/des_enc.o \
+	../crypto/des/ecb3_enc.o \
+	../crypto/des/ecb_enc.o \
+	../crypto/des/ofb64ede.o \
+	../crypto/des/ofb64enc.o \
+	../crypto/dh/dh_err.o \
+	../crypto/dh/dh_lib.o \
+	../crypto/dsa/dsa_asn1.o \
+	../crypto/dsa/dsa_err.o \
+	../crypto/dsa/dsa_lib.o \
+	../crypto/dsa/dsa_sign.o \
+	../crypto/dsa/dsa_vrf.o \
+	../crypto/dso/dso_err.o \
+	../crypto/ec/ec_err.o \
+	../crypto/engine/eng_err.o \
+	../crypto/engine/eng_init.o \
+	../crypto/engine/eng_lib.o \
+	../crypto/engine/eng_list.o \
+	../crypto/engine/eng_table.o \
+	../crypto/engine/tb_cipher.o \
+	../crypto/engine/tb_dh.o \
+	../crypto/engine/tb_digest.o \
+	../crypto/engine/tb_dsa.o \
+	../crypto/engine/tb_rand.o \
+	../crypto/engine/tb_rsa.o \
+	../crypto/err/err_all.o \
+	../crypto/err/err.o \
+	../crypto/err/err_prn.o \
+	../crypto/evp/digest.o \
+	../crypto/evp/e_aes.o \
+	../crypto/evp/e_des3.o \
+	../crypto/evp/e_des.o \
+	../crypto/evp/evp_enc.o \
+	../crypto/evp/evp_err.o \
+	../crypto/evp/evp_lib.o \
+	../crypto/evp/m_sha1.o \
+	../crypto/evp/p_lib.o \
+	../crypto/evp/p_sign.o \
+	../crypto/evp/p_verify.o \
+	../crypto/ex_data.o \
+	../crypto/lhash/lhash.o \
+	../crypto/mem_clr.o \
+	../crypto/mem_dbg.o \
+	../crypto/mem.o \
+	../crypto/objects/obj_dat.o \
+	../crypto/objects/obj_err.o \
+	../crypto/objects/obj_lib.o \
+	../crypto/ocsp/ocsp_err.o \
+	../crypto/pem/pem_err.o \
+	../crypto/pkcs12/pk12err.o \
+	../crypto/pkcs7/pkcs7err.o \
+	../crypto/rand/md_rand.o \
+	../crypto/rand/rand_egd.o \
+	../crypto/rand/rand_err.o \
+	../crypto/rand/randfile.o \
+	../crypto/rand/rand_lib.o \
+	../crypto/rand/rand_os2.o \
+	../crypto/rand/rand_unix.o \
+	../crypto/rand/rand_win.o \
+	../crypto/rsa/rsa_err.o \
+	../crypto/rsa/rsa_lib.o \
+	../crypto/rsa/rsa_none.o \
+	../crypto/rsa/rsa_oaep.o \
+	../crypto/rsa/rsa_pk1.o \
+	../crypto/rsa/rsa_pss.o \
+	../crypto/rsa/rsa_sign.o \
+	../crypto/rsa/rsa_ssl.o \
+	../crypto/rsa/rsa_x931.o \
+	../crypto/stack/stack.o \
+	../crypto/uid.o \
+	../crypto/ui/ui_err.o \
+	../crypto/x509v3/v3err.o \
+	../crypto/x509v3/v3_hex.o \
+	../crypto/x509/x509_err.o 
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
 

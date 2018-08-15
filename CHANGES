@@ -2,6 +2,47 @@
  OpenSSL CHANGES
  _______________
 
+ Changes between 0.9.7l and 0.9.7m  [23 Feb 2007]
+
+  *) Cleanse PEM buffers before freeing them since they may contain 
+     sensitive data.
+     [Benjamin Bennett <ben@psc.edu>]
+
+  *) Include "!eNULL" in SSL_DEFAULT_CIPHER_LIST to make sure that
+     a ciphersuite string such as "DEFAULT:RSA" cannot enable
+     authentication-only ciphersuites.
+     [Bodo Moeller]
+
+  *) Since AES128 and AES256 share a single mask bit in the logic of
+     ssl/ssl_ciph.c, the code for masking out disabled ciphers needs a
+     kludge to work properly if AES128 is available and AES256 isn't.
+     [Victor Duchovni]
+
+  *) Expand security boundary to match 1.1.1 module.
+     [Steve Henson]
+
+  *) Remove redundant features: hash file source, editing of test vectors
+     modify fipsld to use external fips_premain.c signature.
+     [Steve Henson]
+
+  *) New perl script mkfipsscr.pl to create shell scripts or batch files to
+     run algorithm test programs.
+     [Steve Henson]
+
+  *) Make algorithm test programs more tolerant of whitespace.
+     [Steve Henson]
+
+  *) Have SSL/TLS server implementation tolerate "mismatched" record
+     protocol version while receiving ClientHello even if the
+     ClientHello is fragmented.  (The server can't insist on the
+     particular protocol version it has chosen before the ServerHello
+     message has informed the client about his choice.)
+     [Bodo Moeller]
+
+  *) Load error codes if they are not already present instead of using a
+     static variable. This allows them to be cleanly unloaded and reloaded.
+     [Steve Henson]
+
  Changes between 0.9.7k and 0.9.7l  [28 Sep 2006]
 
   *) Introduce limits to prevent malicious keys being able to
