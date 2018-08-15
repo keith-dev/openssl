@@ -2,7 +2,25 @@
  OpenSSL CHANGES
  _______________
 
- Changes between 1.0.0f and 1.0.1  [xx XXX xxxx]
+ Changes between 1.0.0h and 1.0.1  [xx XXX xxxx]
+
+  *) Add compatibility with old MDC2 signatures which use an ASN1 OCTET
+     STRING form instead of a DigestInfo.
+     [Steve Henson]
+
+  *) The format used for MDC2 RSA signatures is inconsistent between EVP
+     and the RSA_sign/RSA_verify functions. This was made more apparent when
+     OpenSSL used RSA_sign/RSA_verify for some RSA signatures in particular
+     those which went through EVP_PKEY_METHOD in 1.0.0 and later. Detect 
+     the correct format in RSA_verify so both forms transparently work.
+     [Steve Henson]
+
+  *) Some servers which support TLS 1.0 can choke if we initially indicate
+     support for TLS 1.2 and later renegotiate using TLS 1.0 in the RSA
+     encrypted premaster secret. As a workaround use the maximum pemitted
+     client version in client hello, this should keep such servers happy
+     and still work with previous versions of OpenSSL.
+     [Steve Henson]
 
   *) Add support for TLS/DTLS heartbeats.
      [Robin Seggelmann <seggelmann@fh-muenster.de>]
@@ -265,6 +283,13 @@
        Update version checking logic to handle version 1.1.
        Add explicit IV handling (ported from DTLS code).
        Add command line options to s_client/s_server.
+     [Steve Henson]
+
+ Changes between 1.0.0g and 1.0.0h [xx XXX xxxx]
+
+  *) Fix CVE-2011-4619: make sure we really are receiving a 
+     client hello before rejecting multiple SGC restarts. Thanks to
+     Ivan Nestlerode <inestlerode@us.ibm.com> for discovering this bug.
      [Steve Henson]
 
  Changes between 1.0.0f and 1.0.0g [18 Jan 2012]
