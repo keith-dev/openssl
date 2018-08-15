@@ -2,6 +2,35 @@
  OpenSSL CHANGES
  _______________
 
+ Changes between 0.9.7j and 0.9.7k  [05 Sep 2006]
+
+  *) Avoid PKCS #1 v1.5 signature attack discovered by Daniel Bleichenbacher
+     (CVE-2006-4339)  [Ben Laurie and Google Security Team]
+
+  *) Change the Unix randomness entropy gathering to use poll() when
+     possible instead of select(), since the latter has some
+     undesirable limitations.
+     [Darryl Miles via Richard Levitte and Bodo Moeller]
+
+  *) Disable rogue ciphersuites:
+
+      - SSLv2 0x08 0x00 0x80 ("RC4-64-MD5")
+      - SSLv3/TLSv1 0x00 0x61 ("EXP1024-RC2-CBC-MD5")
+      - SSLv3/TLSv1 0x00 0x60 ("EXP1024-RC4-MD5")
+
+     The latter two were purportedly from
+     draft-ietf-tls-56-bit-ciphersuites-0[01].txt, but do not really
+     appear there.
+
+     Also deactive the remaining ciphersuites from
+     draft-ietf-tls-56-bit-ciphersuites-01.txt.  These are just as
+     unofficial, and the ID has long expired.
+     [Bodo Moeller]
+
+  *) Fix RSA blinding Heisenbug (problems sometimes occured on
+     dual-core machines) and other potential thread-safety issues.
+     [Bodo Moeller]
+
  Changes between 0.9.7i and 0.9.7j  [04 May 2006]
 
   *) Adapt fipsld and the build system to link against the validated FIPS
