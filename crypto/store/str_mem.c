@@ -1,4 +1,4 @@
-/* crypto/store/str_mem.c -*- mode:C; c-file-style: "eay" -*- */
+/* crypto/store/str_mem.c */
 /*
  * Written by Richard Levitte (richard@levitte.org) for the OpenSSL project
  * 2003.
@@ -83,7 +83,7 @@ typedef struct mem_object_data_st {
     int references;
 } MEM_OBJECT_DATA;
 
-DECLARE_STACK_OF(MEM_OBJECT_DATA)
+DEFINE_STACK_OF(MEM_OBJECT_DATA)
 struct mem_data_st {
     /*
      * sorted with
@@ -98,7 +98,7 @@ struct mem_data_st {
     unsigned int compute_components:1;
 };
 
-DECLARE_STACK_OF(STORE_ATTR_INFO)
+DEFINE_STACK_OF(STORE_ATTR_INFO)
 struct mem_ctx_st {
     /* The type we're searching for */
     int type;

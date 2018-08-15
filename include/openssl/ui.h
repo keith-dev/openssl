@@ -1,4 +1,4 @@
-/* crypto/ui/ui.h -*- mode:C; c-file-style: "eay" -*- */
+/* crypto/ui/ui.h */
 /*
  * Written by Richard Levitte (richard@levitte.org) for the OpenSSL project
  * 2001.
@@ -60,11 +60,12 @@
 #ifndef HEADER_UI_H
 # define HEADER_UI_H
 
-# ifdef OPENSSL_USE_DEPRECATED
+# if OPENSSL_API_COMPAT < 0x10100000L
 #  include <openssl/crypto.h>
 # endif
 # include <openssl/safestack.h>
 # include <openssl/ossl_typ.h>
+# include <openssl/opensslconf.h>
 
 #ifdef  __cplusplus
 extern "C" {
@@ -303,7 +304,7 @@ UI_METHOD *UI_OpenSSL(void);
  * about a string or a prompt, including test data for a verification prompt.
  */
 typedef struct ui_string_st UI_STRING;
-DECLARE_STACK_OF(UI_STRING)
+DEFINE_STACK_OF(UI_STRING)
 
 /*
  * The different types of strings that are currently supported. This is only

@@ -1,3 +1,4 @@
+# Generated from Makefile.in, do not edit
 CFLAGS=-I../../include -Wall -Werror -g
 
 all: state_machine

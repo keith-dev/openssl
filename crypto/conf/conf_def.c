@@ -223,7 +223,7 @@ static int def_load_bio(CONF *conf, BIO *in, long *line)
         goto err;
     }
 
-    section = BUF_strdup("default");
+    section = OPENSSL_strdup("default");
     if (section == NULL) {
         CONFerr(CONF_F_DEF_LOAD_BIO, ERR_R_MALLOC_FAILURE);
         goto err;
@@ -366,7 +366,7 @@ static int def_load_bio(CONF *conf, BIO *in, long *line)
                 CONFerr(CONF_F_DEF_LOAD_BIO, ERR_R_MALLOC_FAILURE);
                 goto err;
             }
-            BUF_strlcpy(v->name, pname, strlen(pname) + 1);
+            OPENSSL_strlcpy(v->name, pname, strlen(pname) + 1);
             if (!str_copy(conf, psection, &(v->value), start))
                 goto err;
 
@@ -652,7 +652,7 @@ static char *scan_dquote(CONF *conf, char *p)
     return (p);
 }
 
-static void dump_value_doall_arg(CONF_VALUE *a, BIO *out)
+static void dump_value_doall_arg(const CONF_VALUE *a, BIO *out)
 {
     if (a->name)
         BIO_printf(out, "[%s] %s=%s\n", a->section, a->name, a->value);
@@ -660,12 +660,11 @@ static void dump_value_doall_arg(CONF_VALUE *a, BIO *out)
         BIO_printf(out, "[[%s]]\n", a->section);
 }
 
-static IMPLEMENT_LHASH_DOALL_ARG_FN(dump_value, CONF_VALUE, BIO)
+IMPLEMENT_LHASH_DOALL_ARG_CONST(CONF_VALUE, BIO);
 
 static int def_dump(const CONF *conf, BIO *out)
 {
-    lh_CONF_VALUE_doall_arg(conf->data, LHASH_DOALL_ARG_FN(dump_value),
-                            BIO, out);
+    lh_CONF_VALUE_doall_BIO(conf->data, dump_value_doall_arg, out);
     return 1;
 }
 

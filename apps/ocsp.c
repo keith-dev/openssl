@@ -914,7 +914,7 @@ static void make_ocsp_response(OCSP_RESPONSE **resp, OCSP_REQUEST *req,
     bs = OCSP_BASICRESP_new();
     thisupd = X509_gmtime_adj(NULL, 0);
     if (ndays != -1)
-        nextupd = X509_gmtime_adj(NULL, nmin * 60 + ndays * 3600 * 24);
+        nextupd = X509_time_adj_ex(NULL, ndays, nmin * 60, NULL);
 
     /* Examine each certificate id in the request */
     for (i = 0; i < id_count; i++) {
@@ -1007,7 +1007,7 @@ static char **lookup_serial(CA_DB *db, ASN1_INTEGER *ser)
     OPENSSL_assert(bn);         /* FIXME: should report an error at this
                                  * point and abort */
     if (BN_is_zero(bn))
-        itmp = BUF_strdup("00");
+        itmp = OPENSSL_strdup("00");
     else
         itmp = BN_bn2hex(bn);
     row[DB_serial] = itmp;

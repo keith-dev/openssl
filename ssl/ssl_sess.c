@@ -249,13 +249,13 @@ SSL_SESSION *ssl_session_dup(SSL_SESSION *src, int ticket)
 
 #ifndef OPENSSL_NO_PSK
     if (src->psk_identity_hint) {
-        dest->psk_identity_hint = BUF_strdup(src->psk_identity_hint);
+        dest->psk_identity_hint = OPENSSL_strdup(src->psk_identity_hint);
         if (dest->psk_identity_hint == NULL) {
             goto err;
         }
     }
     if (src->psk_identity) {
-        dest->psk_identity = BUF_strdup(src->psk_identity);
+        dest->psk_identity = OPENSSL_strdup(src->psk_identity);
         if (dest->psk_identity == NULL) {
             goto err;
         }
@@ -274,7 +274,7 @@ SSL_SESSION *ssl_session_dup(SSL_SESSION *src, int ticket)
     }
 
     if (src->tlsext_hostname) {
-        dest->tlsext_hostname = BUF_strdup(src->tlsext_hostname);
+        dest->tlsext_hostname = OPENSSL_strdup(src->tlsext_hostname);
         if (dest->tlsext_hostname == NULL) {
             goto err;
         }
@@ -282,14 +282,14 @@ SSL_SESSION *ssl_session_dup(SSL_SESSION *src, int ticket)
 #ifndef OPENSSL_NO_EC
     if (src->tlsext_ecpointformatlist) {
         dest->tlsext_ecpointformatlist =
-            BUF_memdup(src->tlsext_ecpointformatlist,
+            OPENSSL_memdup(src->tlsext_ecpointformatlist,
                        src->tlsext_ecpointformatlist_length);
         if (dest->tlsext_ecpointformatlist == NULL)
             goto err;
     }
     if (src->tlsext_ellipticcurvelist) {
         dest->tlsext_ellipticcurvelist =
-            BUF_memdup(src->tlsext_ellipticcurvelist,
+            OPENSSL_memdup(src->tlsext_ellipticcurvelist,
                        src->tlsext_ellipticcurvelist_length);
         if (dest->tlsext_ellipticcurvelist == NULL)
             goto err;
@@ -297,7 +297,7 @@ SSL_SESSION *ssl_session_dup(SSL_SESSION *src, int ticket)
 #endif
 
     if (ticket != 0) {
-        dest->tlsext_tick = BUF_memdup(src->tlsext_tick, src->tlsext_ticklen);
+        dest->tlsext_tick = OPENSSL_memdup(src->tlsext_tick, src->tlsext_ticklen);
         if(dest->tlsext_tick == NULL)
             goto err;
     } else {
@@ -307,7 +307,7 @@ SSL_SESSION *ssl_session_dup(SSL_SESSION *src, int ticket)
 
 #ifndef OPENSSL_NO_SRP
     if (src->srp_username) {
-        dest->srp_username = BUF_strdup(src->srp_username);
+        dest->srp_username = OPENSSL_strdup(src->srp_username);
         if (dest->srp_username == NULL) {
             goto err;
         }
@@ -475,7 +475,7 @@ int ssl_get_new_session(SSL *s, int session)
 
  sess_id_done:
         if (s->tlsext_hostname) {
-            ss->tlsext_hostname = BUF_strdup(s->tlsext_hostname);
+            ss->tlsext_hostname = OPENSSL_strdup(s->tlsext_hostname);
             if (ss->tlsext_hostname == NULL) {
                 SSLerr(SSL_F_SSL_GET_NEW_SESSION, ERR_R_INTERNAL_ERROR);
                 SSL_SESSION_free(ss);
@@ -989,7 +989,7 @@ int SSL_set_session_secret_cb(SSL *s,
                                                             int *secret_len,
                                                             STACK_OF(SSL_CIPHER)
                                                             *peer_ciphers,
-                                                            SSL_CIPHER
+                                                            const SSL_CIPHER
                                                             **cipher,
                                                             void *arg),
                               void *arg)
@@ -1044,7 +1044,7 @@ typedef struct timeout_param_st {
     LHASH_OF(SSL_SESSION) *cache;
 } TIMEOUT_PARAM;
 
-static void timeout_doall_arg(SSL_SESSION *s, TIMEOUT_PARAM *p)
+static void timeout_cb(SSL_SESSION *s, TIMEOUT_PARAM *p)
 {
     if ((p->time == 0) || (p->time > (s->time + s->timeout))) { /* timeout */
         /*
@@ -1060,7 +1060,7 @@ static void timeout_doall_arg(SSL_SESSION *s, TIMEOUT_PARAM *p)
     }
 }
 
-static IMPLEMENT_LHASH_DOALL_ARG_FN(timeout, SSL_SESSION, TIMEOUT_PARAM)
+IMPLEMENT_LHASH_DOALL_ARG(SSL_SESSION, TIMEOUT_PARAM);
 
 void SSL_CTX_flush_sessions(SSL_CTX *s, long t)
 {
@@ -1075,8 +1075,7 @@ void SSL_CTX_flush_sessions(SSL_CTX *s, long t)
     CRYPTO_w_lock(CRYPTO_LOCK_SSL_CTX);
     i = CHECKED_LHASH_OF(SSL_SESSION, tp.cache)->down_load;
     CHECKED_LHASH_OF(SSL_SESSION, tp.cache)->down_load = 0;
-    lh_SSL_SESSION_doall_arg(tp.cache, LHASH_DOALL_ARG_FN(timeout),
-                             TIMEOUT_PARAM, &tp);
+    lh_SSL_SESSION_doall_TIMEOUT_PARAM(tp.cache, timeout_cb, &tp);
     CHECKED_LHASH_OF(SSL_SESSION, tp.cache)->down_load = i;
     CRYPTO_w_unlock(CRYPTO_LOCK_SSL_CTX);
 }

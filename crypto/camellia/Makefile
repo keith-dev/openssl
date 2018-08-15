@@ -1,3 +1,4 @@
+# Generated from Makefile.in, do not edit
 #
 # crypto/camellia/Makefile
 #
@@ -73,19 +74,3 @@ clean:
 	rm -f *.s *.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
-
-camellia.o: ../../include/openssl/camellia.h
-camellia.o: ../../include/openssl/opensslconf.h camellia.c cmll_locl.h
-cmll_cbc.o: ../../include/openssl/camellia.h ../../include/openssl/modes.h
-cmll_cbc.o: ../../include/openssl/opensslconf.h cmll_cbc.c
-cmll_cfb.o: ../../include/openssl/camellia.h ../../include/openssl/modes.h
-cmll_cfb.o: ../../include/openssl/opensslconf.h cmll_cfb.c
-cmll_ctr.o: ../../include/openssl/camellia.h ../../include/openssl/modes.h
-cmll_ctr.o: ../../include/openssl/opensslconf.h cmll_ctr.c
-cmll_ecb.o: ../../include/openssl/camellia.h
-cmll_ecb.o: ../../include/openssl/opensslconf.h cmll_ecb.c cmll_locl.h
-cmll_misc.o: ../../include/openssl/camellia.h
-cmll_misc.o: ../../include/openssl/opensslconf.h
-cmll_misc.o: ../../include/openssl/opensslv.h cmll_locl.h cmll_misc.c
-cmll_ofb.o: ../../include/openssl/camellia.h ../../include/openssl/modes.h
-cmll_ofb.o: ../../include/openssl/opensslconf.h cmll_ofb.c

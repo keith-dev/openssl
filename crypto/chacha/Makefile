@@ -1,3 +1,4 @@
+# Generated from Makefile.in, do not edit
 #
 # OpenSSL/crypto/chacha/Makefile
 #
@@ -17,8 +18,6 @@ ASFLAGS= $(INCLUDES) $(ASFLAG)
 AFLAGS= $(ASFLAGS)
 
 GENERAL=Makefile
-TEST=chachatest.c
-APPS=
 
 LIB=$(TOP)/libcrypto.a
 LIBSRC=chacha_enc.c
@@ -63,5 +62,3 @@ clean:
 	rm -f *.s *.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
-
-chacha_enc.o: ../include/internal/chacha.h chacha_enc.c

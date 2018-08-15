@@ -8,14 +8,11 @@ extern "C" {
 #ifndef OPENSSL_DOING_MAKEDEPEND
 
 
-#ifndef OPENSSL_NO_DEPRECATED
-# define OPENSSL_NO_DEPRECATED
+#ifndef OPENSSL_NO_CRYPTO_MDEBUG
+# define OPENSSL_NO_CRYPTO_MDEBUG
 #endif
 #ifndef OPENSSL_NO_EC_NISTP_64_GCC_128
 # define OPENSSL_NO_EC_NISTP_64_GCC_128
-#endif
-#ifndef OPENSSL_NO_GMP
-# define OPENSSL_NO_GMP
 #endif
 #ifndef OPENSSL_NO_JPAKE
 # define OPENSSL_NO_JPAKE
@@ -50,14 +47,11 @@ extern "C" {
    who haven't had the time to do the appropriate changes in their
    applications.  */
 #ifdef OPENSSL_ALGORITHM_DEFINES
-# if defined(OPENSSL_NO_DEPRECATED) && !defined(NO_DEPRECATED)
-#  define NO_DEPRECATED
+# if defined(OPENSSL_NO_CRYPTO_MDEBUG) && !defined(NO_CRYPTO_MDEBUG)
+#  define NO_CRYPTO_MDEBUG
 # endif
 # if defined(OPENSSL_NO_EC_NISTP_64_GCC_128) && !defined(NO_EC_NISTP_64_GCC_128)
 #  define NO_EC_NISTP_64_GCC_128
-# endif
-# if defined(OPENSSL_NO_GMP) && !defined(NO_GMP)
-#  define NO_GMP
 # endif
 # if defined(OPENSSL_NO_JPAKE) && !defined(NO_JPAKE)
 #  define NO_JPAKE
@@ -85,20 +79,44 @@ extern "C" {
 /* crypto/opensslconf.h.in */
 
 /*
- * Applications should use -DOPENSSL_USE_DEPRECATED to enable access to
- * deprecated functions. But if the library has been built to disable
- * deprecated functions then this will not work
+ * Applications should use -DOPENSSL_API_COMPAT=<version> to suppress the
+ * declarations of functions deprecated in or before <version>. Otherwise, they
+ * still won't see them if the library has been built to disable deprecated
+ * functions.
  */
-#if defined(OPENSSL_NO_DEPRECATED) && defined(OPENSSL_USE_DEPRECATED)
-#error "OPENSSL_USE_DEPRECATED has been defined, but OpenSSL has been built without support for deprecated functions"
+#if defined(OPENSSL_NO_DEPRECATED)
+# define DECLARE_DEPRECATED(f)
+#elif __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ > 0)
+# define DECLARE_DEPRECATED(f)    f __attribute__ ((deprecated));
+#else
+# define DECLARE_DEPRECATED(f)   f;
 #endif
 
-/* Test for support for deprecated attribute */
-#if __GNUC__ > 3 || \
-  (__GNUC__ == 3 && __GNUC_MINOR__ > 0)
-#define DECLARE_DEPRECATED(f)    f __attribute__ ((deprecated))
+#ifndef OPENSSL_MIN_API
+#define OPENSSL_MIN_API 0
+#endif
+
+#if !defined(OPENSSL_API_COMPAT) || OPENSSL_API_COMPAT < OPENSSL_MIN_API
+#undef OPENSSL_API_COMPAT
+#define OPENSSL_API_COMPAT OPENSSL_MIN_API
+#endif
+
+#if OPENSSL_API_COMPAT < 0x10100000L
+# define DEPRECATEDIN_1_1_0(f)   DECLARE_DEPRECATED(f)
 #else
-#define DECLARE_DEPRECATED(f)    f
+# define DEPRECATEDIN_1_1_0(f)
+#endif
+
+#if OPENSSL_API_COMPAT < 0x10000000L
+# define DEPRECATEDIN_1_0_0(f)   DECLARE_DEPRECATED(f)
+#else
+# define DEPRECATEDIN_1_0_0(f)
+#endif
+
+#if OPENSSL_API_COMPAT < 0x00908000L
+# define DEPRECATEDIN_0_9_8(f)   DECLARE_DEPRECATED(f)
+#else
+# define DEPRECATEDIN_0_9_8(f)
 #endif
 
 /* Generate 80386 code? */
@@ -149,11 +167,11 @@ extern "C" {
 #endif
 #endif
 
-#if (defined(HEADER_NEW_DES_H) || defined(HEADER_DES_H)) && !defined(DES_LONG)
+#ifndef OSSL_DES_LONG
 /* If this is set to 'unsigned int' on a DEC Alpha, this gives about a
  * %20 speed up (longs are 8 bytes, int's are 4). */
-#ifndef DES_LONG
-#define DES_LONG unsigned long
+#ifndef OSSL_DES_LONG
+#define OSSL_DES_LONG unsigned long
 #endif
 #endif
 

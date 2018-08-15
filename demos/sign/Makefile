@@ -1,3 +1,4 @@
+# Generated from Makefile.in, do not edit
 CC=cc
 CFLAGS= -g -I../../include -Wall
 LIBS=  -L../.. -lcrypto

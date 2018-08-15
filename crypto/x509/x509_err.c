@@ -71,8 +71,10 @@
 
 static ERR_STRING_DATA X509_str_functs[] = {
     {ERR_FUNC(X509_F_ADD_CERT_DIR), "add_cert_dir"},
+    {ERR_FUNC(X509_F_BUILD_CHAIN), "build_chain"},
     {ERR_FUNC(X509_F_BY_FILE_CTRL), "by_file_ctrl"},
     {ERR_FUNC(X509_F_CHECK_POLICY), "check_policy"},
+    {ERR_FUNC(X509_F_DANE_I2D), "dane_i2d"},
     {ERR_FUNC(X509_F_DIR_CTRL), "dir_ctrl"},
     {ERR_FUNC(X509_F_GET_CERT_BY_SUBJECT), "get_cert_by_subject"},
     {ERR_FUNC(X509_F_NETSCAPE_SPKI_B64_DECODE), "NETSCAPE_SPKI_b64_decode"},
@@ -109,7 +111,7 @@ static ERR_STRING_DATA X509_str_functs[] = {
     {ERR_FUNC(X509_F_X509_NAME_ONELINE), "X509_NAME_oneline"},
     {ERR_FUNC(X509_F_X509_NAME_PRINT), "X509_NAME_print"},
     {ERR_FUNC(X509_F_X509_PRINT_EX_FP), "X509_print_ex_fp"},
-    {ERR_FUNC(X509_F_X509_PUBKEY_GET), "X509_PUBKEY_get"},
+    {ERR_FUNC(X509_F_X509_PUBKEY_GET0), "X509_PUBKEY_get0"},
     {ERR_FUNC(X509_F_X509_PUBKEY_SET), "X509_PUBKEY_set"},
     {ERR_FUNC(X509_F_X509_REQ_CHECK_PRIVATE_KEY),
      "X509_REQ_check_private_key"},
@@ -133,6 +135,7 @@ static ERR_STRING_DATA X509_str_functs[] = {
 
 static ERR_STRING_DATA X509_str_reasons[] = {
     {ERR_REASON(X509_R_AKID_MISMATCH), "akid mismatch"},
+    {ERR_REASON(X509_R_BAD_SELECTOR), "bad selector"},
     {ERR_REASON(X509_R_BAD_X509_FILETYPE), "bad x509 filetype"},
     {ERR_REASON(X509_R_BASE64_DECODE_ERROR), "base64 decode error"},
     {ERR_REASON(X509_R_CANT_CHECK_DH_KEY), "cant check dh key"},

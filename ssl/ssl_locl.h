@@ -169,6 +169,7 @@
 #include "record/record.h"
 #include "statem/statem.h"
 #include "packet_locl.h"
+#include "internal/dane.h"
 
 # ifdef OPENSSL_BUILD_SHLIBSSL
 #  undef OPENSSL_EXTERN
@@ -264,6 +265,11 @@
                           c[1]=(unsigned char)(((l)>> 8)&0xff), \
                           c[2]=(unsigned char)(((l)    )&0xff)),c+=3)
 
+#define DTLS_VERSION_GT(v1, v2) ((v1) < (v2))
+#define DTLS_VERSION_GE(v1, v2) ((v1) <= (v2))
+#define DTLS_VERSION_LT(v1, v2) ((v1) > (v2))
+#define DTLS_VERSION_LE(v1, v2) ((v1) >= (v2))
+
 /* LOCAL STUFF */
 
 # define SSL_DECRYPT     0
@@ -295,32 +301,28 @@
 /* Bits for algorithm_mkey (key exchange algorithm) */
 /* RSA key exchange */
 # define SSL_kRSA                0x00000001U
-/* DH cert, RSA CA cert */
-# define SSL_kDHr                0x00000002U
-/* DH cert, DSA CA cert */
-# define SSL_kDHd                0x00000004U
 /* tmp DH key no DH cert */
-# define SSL_kDHE                0x00000008U
+# define SSL_kDHE                0x00000002U
 /* synonym */
 # define SSL_kEDH                SSL_kDHE
 /* ECDH cert, RSA CA cert */
-# define SSL_kECDHr              0x00000020U
+# define SSL_kECDHr              0x00000004U
 /* ECDH cert, ECDSA CA cert */
-# define SSL_kECDHe              0x00000040U
+# define SSL_kECDHe              0x00000008U
 /* ephemeral ECDH */
-# define SSL_kECDHE              0x00000080U
+# define SSL_kECDHE              0x00000010U
 /* synonym */
 # define SSL_kEECDH              SSL_kECDHE
 /* PSK */
-# define SSL_kPSK                0x00000100U
+# define SSL_kPSK                0x00000020U
 /* GOST key exchange */
-# define SSL_kGOST       0x00000200U
+# define SSL_kGOST               0x00000040U
 /* SRP */
-# define SSL_kSRP        0x00000400U
+# define SSL_kSRP                0x00000080U
 
-# define SSL_kRSAPSK             0x00000800U
-# define SSL_kECDHEPSK           0x00001000U
-# define SSL_kDHEPSK             0x00002000U
+# define SSL_kRSAPSK             0x00000100U
+# define SSL_kECDHEPSK           0x00000200U
+# define SSL_kDHEPSK             0x00000400U
 
 /* all PSK */
 
@@ -333,20 +335,18 @@
 # define SSL_aDSS                0x00000002U
 /* no auth (i.e. use ADH or AECDH) */
 # define SSL_aNULL               0x00000004U
-/* Fixed DH auth (kDHd or kDHr) */
-# define SSL_aDH                 0x00000008U
 /* Fixed ECDH auth (kECDHe or kECDHr) */
-# define SSL_aECDH               0x00000010U
+# define SSL_aECDH               0x00000008U
 /* ECDSA auth*/
-# define SSL_aECDSA              0x00000040U
+# define SSL_aECDSA              0x00000010U
 /* PSK auth */
-# define SSL_aPSK                0x00000080U
+# define SSL_aPSK                0x00000020U
 /* GOST R 34.10-2001 signature auth */
-# define SSL_aGOST01                     0x00000200U
+# define SSL_aGOST01             0x00000040U
 /* SRP auth */
-# define SSL_aSRP                0x00000400U
+# define SSL_aSRP                0x00000080U
 /* GOST R 34.10-2012 signature auth */
-# define SSL_aGOST12             0x00000800U
+# define SSL_aGOST12             0x00000100U
 
 /* Bits for algorithm_enc (symmetric encryption) */
 # define SSL_DES                 0x00000001U
@@ -472,8 +472,8 @@
  * flags because it may not be set to correct version yet.
  */
 # define SSL_CLIENT_USE_TLS1_2_CIPHERS(s)        \
-                ((SSL_IS_DTLS(s) && s->client_version <= DTLS1_2_VERSION) || \
-                (!SSL_IS_DTLS(s) && s->client_version >= TLS1_2_VERSION))
+    ((!SSL_IS_DTLS(s) && s->client_version >= TLS1_2_VERSION) || \
+     (SSL_IS_DTLS(s) && DTLS_VERSION_GE(s->client_version, DTLS1_2_VERSION)))
 
 # ifdef TLSEXT_TYPE_encrypt_then_mac
 #  define SSL_USE_ETM(s) (s->s3->flags & TLS1_FLAGS_ENCRYPT_THEN_MAC)
@@ -485,13 +485,11 @@
 # define SSL_PKEY_RSA_ENC        0
 # define SSL_PKEY_RSA_SIGN       1
 # define SSL_PKEY_DSA_SIGN       2
-# define SSL_PKEY_DH_RSA         3
-# define SSL_PKEY_DH_DSA         4
-# define SSL_PKEY_ECC            5
-# define SSL_PKEY_GOST01         7
-# define SSL_PKEY_GOST12_256     8
-# define SSL_PKEY_GOST12_512     9
-# define SSL_PKEY_NUM            10
+# define SSL_PKEY_ECC            3
+# define SSL_PKEY_GOST01         4
+# define SSL_PKEY_GOST12_256     5
+# define SSL_PKEY_GOST12_512     6
+# define SSL_PKEY_NUM            7
 /*
  * Pseudo-constant. GOST cipher suites can use different certs for 1
  * SSL_CIPHER. So let's see which one we have in fact.
@@ -538,6 +536,8 @@ struct ssl_cipher_st {
 /* Used to hold SSL/TLS functions */
 struct ssl_method_st {
     int version;
+    unsigned flags;
+    unsigned long mask;
     int (*ssl_new) (SSL *s);
     void (*ssl_clear) (SSL *s);
     void (*ssl_free) (SSL *s);
@@ -685,16 +685,13 @@ typedef struct srp_ctx_st {
 
 # endif
 
-typedef struct ssl_comp_st SSL_COMP;
-
 struct ssl_comp_st {
     int id;
     const char *name;
     COMP_METHOD *method;
 };
 
-DECLARE_STACK_OF(SSL_COMP)
-DECLARE_LHASH_OF(SSL_SESSION);
+DEFINE_LHASH_OF(SSL_SESSION);
 
 
 struct ssl_ctx_st {
@@ -804,6 +801,8 @@ struct ssl_ctx_st {
 
     uint32_t options;
     uint32_t mode;
+    int min_proto_version;
+    int max_proto_version;
     long max_cert_list;
 
     struct cert_st /* CERT */ *cert;
@@ -924,6 +923,9 @@ struct ssl_ctx_st {
     unsigned char *alpn_client_proto_list;
     unsigned alpn_client_proto_list_len;
 
+    /* Shared DANE context */
+    struct dane_ctx_st dane;
+
     /* SRTP profiles we are willing to do from RFC 5764 */
     STACK_OF(SRTP_PROTECTION_PROFILE) *srtp_profiles;
     /*
@@ -1006,6 +1008,10 @@ struct ssl_st {
     void *msg_callback_arg;
     int hit;                    /* reusing a previous session */
     X509_VERIFY_PARAM *param;
+
+    /* Per connection DANE state */
+    struct dane_st dane;
+
     /* crypto */
     STACK_OF(SSL_CIPHER) *cipher_list;
     STACK_OF(SSL_CIPHER) *cipher_list_by_id;
@@ -1074,6 +1080,8 @@ struct ssl_st {
     uint32_t options;
     /* API behaviour */
     uint32_t mode;
+    int min_proto_version;
+    int max_proto_version;
     long max_cert_list;
     int first_packet;
     /* what was passed, used for SSLv3/TLS rollback check */
@@ -1196,8 +1204,6 @@ typedef struct ssl3_state_st {
     /* flags for countermeasure against known-IV weakness */
     int need_empty_fragments;
     int empty_fragment_done;
-    /* The value of 'extra' when the buffers were initialized */
-    int init_extra;
     /* used during startup, digest all incoming/outgoing packets */
     BIO *handshake_buffer;
     /*
@@ -1237,11 +1243,8 @@ typedef struct ssl3_state_st {
         int message_type;
         /* used to hold the new cipher we are going to use */
         const SSL_CIPHER *new_cipher;
-#  ifndef OPENSSL_NO_DH
-        DH *dh;
-#  endif
-#  ifndef OPENSSL_NO_EC
-        EC_KEY *ecdh;           /* holds short lived ECDH key */
+#  if !defined(OPENSSL_NO_EC) || !defined(OPENSSL_NO_DH)
+        EVP_PKEY *pkey;            /* holds short lived DH/ECDH key */
 #  endif
         /* used for certificate requests */
         int cert_req;
@@ -1337,11 +1340,8 @@ typedef struct ssl3_state_st {
 #   endif                       /* !OPENSSL_NO_EC */
 
     /* For clients: peer temporary key */
-# ifndef OPENSSL_NO_DH
-    DH *peer_dh_tmp;
-# endif
-# ifndef OPENSSL_NO_EC
-    EC_KEY *peer_ecdh_tmp;
+# if !defined(OPENSSL_NO_EC) || !defined(OPENSSL_NO_DH)
+    EVP_PKEY *peer_tmp;
 # endif
 
 } SSL3_STATE;
@@ -1502,7 +1502,7 @@ typedef struct cert_st {
      */
     CERT_PKEY *key;
 # ifndef OPENSSL_NO_DH
-    DH *dh_tmp;
+    EVP_PKEY *dh_tmp;
     DH *(*dh_tmp_cb) (SSL *ssl, int is_export, int keysize);
     int dh_tmp_auto;
 # endif
@@ -1692,12 +1692,20 @@ extern const SSL3_ENC_METHOD SSLv3_enc_data;
 extern const SSL3_ENC_METHOD DTLSv1_enc_data;
 extern const SSL3_ENC_METHOD DTLSv1_2_enc_data;
 
-# define IMPLEMENT_tls_meth_func(version, func_name, s_accept, s_connect, \
-                                s_get_meth, enc_data) \
+/*
+ * Flags for SSL methods
+ */
+#define SSL_METHOD_NO_FIPS      (1U<<0)
+#define SSL_METHOD_NO_SUITEB    (1U<<1)
+
+# define IMPLEMENT_tls_meth_func(version, flags, mask, func_name, s_accept, \
+                                 s_connect, s_get_meth, enc_data) \
 const SSL_METHOD *func_name(void)  \
         { \
         static const SSL_METHOD func_name##_data= { \
                 version, \
+                flags, \
+                mask, \
                 tls1_new, \
                 tls1_clear, \
                 tls1_free, \
@@ -1734,6 +1742,8 @@ const SSL_METHOD *func_name(void)  \
         { \
         static const SSL_METHOD func_name##_data= { \
                 SSL3_VERSION, \
+                SSL_METHOD_NO_FIPS | SSL_METHOD_NO_SUITEB, \
+                SSL_OP_NO_SSLv3, \
                 ssl3_new, \
                 ssl3_clear, \
                 ssl3_free, \
@@ -1765,12 +1775,14 @@ const SSL_METHOD *func_name(void)  \
         return &func_name##_data; \
         }
 
-# define IMPLEMENT_dtls1_meth_func(version, func_name, s_accept, s_connect, \
-                                        s_get_meth, enc_data) \
+# define IMPLEMENT_dtls1_meth_func(version, flags, mask, func_name, s_accept, \
+                                        s_connect, s_get_meth, enc_data) \
 const SSL_METHOD *func_name(void)  \
         { \
         static const SSL_METHOD func_name##_data= { \
                 version, \
+                flags, \
+                mask, \
                 dtls1_new, \
                 dtls1_clear, \
                 dtls1_free, \
@@ -1870,6 +1882,9 @@ void ssl_load_ciphers(void);
 __owur int ssl_fill_hello_random(SSL *s, int server, unsigned char *field, int len);
 __owur int ssl_generate_master_secret(SSL *s, unsigned char *pms, size_t pmslen,
                                       int free_pms);
+__owur EVP_PKEY *ssl_generate_pkey(EVP_PKEY *pm, int nid);
+__owur int ssl_derive(SSL *s, EVP_PKEY *privkey, EVP_PKEY *pubkey);
+__owur EVP_PKEY *ssl_dh_to_pkey(DH *dh);
 
 __owur const SSL_CIPHER *ssl3_get_cipher_by_char(const unsigned char *p);
 __owur int ssl3_put_cipher_by_char(const SSL_CIPHER *c, unsigned char *p);
@@ -1892,8 +1907,9 @@ __owur int ssl3_final_finish_mac(SSL *s, const char *sender, int slen,
 void ssl3_finish_mac(SSL *s, const unsigned char *buf, int len);
 void ssl3_free_digest_list(SSL *s);
 __owur unsigned long ssl3_output_cert_chain(SSL *s, CERT_PKEY *cpk);
-__owur SSL_CIPHER *ssl3_choose_cipher(SSL *ssl, STACK_OF(SSL_CIPHER) *clnt,
-                               STACK_OF(SSL_CIPHER) *srvr);
+__owur const SSL_CIPHER *ssl3_choose_cipher(SSL *ssl,
+                                            STACK_OF(SSL_CIPHER) *clnt,
+                                            STACK_OF(SSL_CIPHER) *srvr);
 __owur int ssl3_digest_cached_records(SSL *s, int keep);
 __owur int ssl3_new(SSL *s);
 void ssl3_free(SSL *s);
@@ -1914,6 +1930,12 @@ __owur int ssl3_set_handshake_header(SSL *s, int htype, unsigned long len);
 __owur int ssl3_handshake_write(SSL *s);
 
 __owur int ssl_allow_compression(SSL *s);
+
+__owur int ssl_set_client_hello_version(SSL *s);
+__owur int ssl_check_version_downgrade(SSL *s);
+__owur int ssl_set_version_bound(int method_version, int version, int *bound);
+__owur int ssl_choose_server_version(SSL *s);
+__owur int ssl_choose_client_version(SSL *s, int version);
 
 __owur long tls1_default_timeout(void);
 __owur int dtls1_do_write(SSL *s, int type);

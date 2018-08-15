@@ -1,3 +1,4 @@
+# Generated from Makefile.in, do not edit
 #
 # OpenSSL/tools/Makefile
 #

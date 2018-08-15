@@ -306,12 +306,9 @@ static const SSL_CIPHER cipher_aliases[] = {
      */
     {0, SSL_TXT_kRSA, 0, SSL_kRSA, 0, 0, 0, 0, 0, 0, 0, 0},
 
-    {0, SSL_TXT_kDHr, 0, SSL_kDHr, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, SSL_TXT_kDHd, 0, SSL_kDHd, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, SSL_TXT_kDH, 0, SSL_kDHr | SSL_kDHd, 0, 0, 0, 0, 0, 0, 0, 0},
     {0, SSL_TXT_kEDH, 0, SSL_kDHE, 0, 0, 0, 0, 0, 0, 0, 0},
     {0, SSL_TXT_kDHE, 0, SSL_kDHE, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, SSL_TXT_DH, 0, SSL_kDHr | SSL_kDHd | SSL_kDHE, 0, 0, 0, 0, 0, 0, 0,
+    {0, SSL_TXT_DH, 0, SSL_kDHE, 0, 0, 0, 0, 0, 0, 0,
      0},
 
     {0, SSL_TXT_kECDHr, 0, SSL_kECDHr, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -334,8 +331,6 @@ static const SSL_CIPHER cipher_aliases[] = {
     {0, SSL_TXT_aDSS, 0, 0, SSL_aDSS, 0, 0, 0, 0, 0, 0, 0},
     {0, SSL_TXT_DSS, 0, 0, SSL_aDSS, 0, 0, 0, 0, 0, 0, 0},
     {0, SSL_TXT_aNULL, 0, 0, SSL_aNULL, 0, 0, 0, 0, 0, 0, 0},
-    /* no such ciphersuites supported! */
-    {0, SSL_TXT_aDH, 0, 0, SSL_aDH, 0, 0, 0, 0, 0, 0, 0},
     {0, SSL_TXT_aECDH, 0, 0, SSL_aECDH, 0, 0, 0, 0, 0, 0, 0},
     {0, SSL_TXT_aECDSA, 0, 0, SSL_aECDSA, 0, 0, 0, 0, 0, 0, 0},
     {0, SSL_TXT_ECDSA, 0, 0, SSL_aECDSA, 0, 0, 0, 0, 0, 0, 0},
@@ -506,8 +501,7 @@ void ssl_load_ciphers(void)
     disabled_auth_mask |= SSL_aDSS;
 #endif
 #ifdef OPENSSL_NO_DH
-    disabled_mkey_mask |= SSL_kDHr | SSL_kDHd | SSL_kDHE | SSL_kDHEPSK;
-    disabled_auth_mask |= SSL_aDH;
+    disabled_mkey_mask |= SSL_kDHE | SSL_kDHEPSK;
 #endif
 #ifdef OPENSSL_NO_EC
     disabled_mkey_mask |= SSL_kECDHe | SSL_kECDHr | SSL_kECDHEPSK;
@@ -573,7 +567,7 @@ static void load_builtin_compressions(void)
             SSL_COMP *comp = NULL;
             COMP_METHOD *method = COMP_zlib();
 
-            MemCheck_off();
+            CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_DISABLE);
             ssl_comp_methods = sk_SSL_COMP_new(sk_comp_cmp);
             if (COMP_get_type(method) != NID_undef
                 && ssl_comp_methods != NULL) {
@@ -586,7 +580,7 @@ static void load_builtin_compressions(void)
                     sk_SSL_COMP_sort(ssl_comp_methods);
                 }
             }
-            MemCheck_on();
+            CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ENABLE);
         }
     }
 
@@ -1355,12 +1349,8 @@ static int check_suiteb_cipher_list(const SSL_METHOD *meth, CERT *c,
     /* Check version: if TLS 1.2 ciphers allowed we can use Suite B */
 
     if (!(meth->ssl3_enc->enc_flags & SSL_ENC_FLAG_TLS1_2_CIPHERS)) {
-        if (meth->ssl3_enc->enc_flags & SSL_ENC_FLAG_DTLS)
-            SSLerr(SSL_F_CHECK_SUITEB_CIPHER_LIST,
-                   SSL_R_ONLY_DTLS_1_2_ALLOWED_IN_SUITEB_MODE);
-        else
-            SSLerr(SSL_F_CHECK_SUITEB_CIPHER_LIST,
-                   SSL_R_ONLY_TLS_1_2_ALLOWED_IN_SUITEB_MODE);
+        SSLerr(SSL_F_CHECK_SUITEB_CIPHER_LIST,
+               SSL_R_AT_LEAST_TLS_1_2_NEEDED_IN_SUITEB_MODE);
         return 0;
     }
 # ifndef OPENSSL_NO_EC
@@ -1591,34 +1581,28 @@ char *SSL_CIPHER_description(const SSL_CIPHER *cipher, char *buf, int len)
 {
     const char *ver;
     const char *kx, *au, *enc, *mac;
-    uint32_t alg_mkey, alg_auth, alg_enc, alg_mac, alg_ssl;
+    uint32_t alg_mkey, alg_auth, alg_enc, alg_mac;
     static const char *format =
         "%-23s %s Kx=%-8s Au=%-4s Enc=%-9s Mac=%-4s\n";
+
+    if (buf == NULL) {
+        len = 128;
+        buf = OPENSSL_malloc(len);
+        if (buf == NULL)
+            return NULL;
+    } else if (len < 128)
+        return NULL;
 
     alg_mkey = cipher->algorithm_mkey;
     alg_auth = cipher->algorithm_auth;
     alg_enc = cipher->algorithm_enc;
     alg_mac = cipher->algorithm_mac;
-    alg_ssl = cipher->algorithm_ssl;
 
-    if (alg_ssl & SSL_SSLV3)
-        ver = "SSLv3";
-    else if (alg_ssl & SSL_TLSV1)
-        ver = "TLSv1.0";
-    else if (alg_ssl & SSL_TLSV1_2)
-        ver = "TLSv1.2";
-    else
-        ver = "unknown";
+    ver = SSL_CIPHER_get_version(cipher);
 
     switch (alg_mkey) {
     case SSL_kRSA:
         kx = "RSA";
-        break;
-    case SSL_kDHr:
-        kx = "DH/RSA";
-        break;
-    case SSL_kDHd:
-        kx = "DH/DSS";
         break;
     case SSL_kDHE:
         kx = "DH";
@@ -1660,9 +1644,6 @@ char *SSL_CIPHER_description(const SSL_CIPHER *cipher, char *buf, int len)
         break;
     case SSL_aDSS:
         au = "DSS";
-        break;
-    case SSL_aDH:
-        au = "DH";
         break;
     case SSL_aECDH:
         au = "ECDH";
@@ -1747,6 +1728,9 @@ char *SSL_CIPHER_description(const SSL_CIPHER *cipher, char *buf, int len)
     case SSL_eGOST2814789CNT12:
         enc = "GOST89(256)";
         break;
+    case SSL_CHACHA20POLY1305:
+        enc = "CHACHA20/POLY1305(256)";
+        break;
     default:
         enc = "unknown";
         break;
@@ -1784,14 +1768,6 @@ char *SSL_CIPHER_description(const SSL_CIPHER *cipher, char *buf, int len)
         break;
     }
 
-    if (buf == NULL) {
-        len = 128;
-        buf = OPENSSL_malloc(len);
-        if (buf == NULL)
-            return ("OPENSSL_malloc Error");
-    } else if (len < 128)
-        return ("Buffer too small");
-
     BIO_snprintf(buf, len, format, cipher->name, ver, kx, au, enc, mac);
 
     return (buf);
@@ -1799,15 +1775,19 @@ char *SSL_CIPHER_description(const SSL_CIPHER *cipher, char *buf, int len)
 
 char *SSL_CIPHER_get_version(const SSL_CIPHER *c)
 {
-    int i;
+    uint32_t alg_ssl;
 
     if (c == NULL)
-        return ("(NONE)");
-    i = (int)(c->id >> 24L);
-    if (i == 3)
-        return ("TLSv1/SSLv3");
-    else
-        return ("unknown");
+        return "(NONE)";
+    alg_ssl = c->algorithm_ssl;
+
+    if (alg_ssl & SSL_SSLV3)
+        return "SSLv3";
+    if (alg_ssl & SSL_TLSV1)
+        return "TLSv1.0";
+    if (alg_ssl & SSL_TLSV1_2)
+        return "TLSv1.2";
+    return "unknown";
 }
 
 /* return the actual cipher being used */
@@ -1918,10 +1898,10 @@ int SSL_COMP_add_compression_method(int id, COMP_METHOD *cm)
         return 0;
     }
 
-    MemCheck_off();
+    CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_DISABLE);
     comp = OPENSSL_malloc(sizeof(*comp));
     if (comp == NULL) {
-        MemCheck_on();
+        CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ENABLE);
         SSLerr(SSL_F_SSL_COMP_ADD_COMPRESSION_METHOD, ERR_R_MALLOC_FAILURE);
         return (1);
     }
@@ -1931,20 +1911,20 @@ int SSL_COMP_add_compression_method(int id, COMP_METHOD *cm)
     load_builtin_compressions();
     if (ssl_comp_methods && sk_SSL_COMP_find(ssl_comp_methods, comp) >= 0) {
         OPENSSL_free(comp);
-        MemCheck_on();
+        CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ENABLE);
         SSLerr(SSL_F_SSL_COMP_ADD_COMPRESSION_METHOD,
                SSL_R_DUPLICATE_COMPRESSION_ID);
         return (1);
-    } else if ((ssl_comp_methods == NULL)
+    }
+    if ((ssl_comp_methods == NULL)
                || !sk_SSL_COMP_push(ssl_comp_methods, comp)) {
         OPENSSL_free(comp);
-        MemCheck_on();
+        CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ENABLE);
         SSLerr(SSL_F_SSL_COMP_ADD_COMPRESSION_METHOD, ERR_R_MALLOC_FAILURE);
         return (1);
-    } else {
-        MemCheck_on();
-        return (0);
     }
+    CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ENABLE);
+    return (0);
 }
 #endif
 
@@ -1977,10 +1957,6 @@ int ssl_cipher_get_cert_index(const SSL_CIPHER *c)
         return SSL_PKEY_ECC;
     } else if (alg_a & SSL_aECDSA)
         return SSL_PKEY_ECC;
-    else if (alg_k & SSL_kDHr)
-        return SSL_PKEY_DH_RSA;
-    else if (alg_k & SSL_kDHd)
-        return SSL_PKEY_DH_DSA;
     else if (alg_a & SSL_aDSS)
         return SSL_PKEY_DSA_SIGN;
     else if (alg_a & SSL_aRSA)

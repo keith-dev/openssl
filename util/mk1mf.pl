@@ -83,8 +83,6 @@ while(<IN>) {
 }
 close(IN);
 
-$debug = 1 if $mf_platform =~ /^debug-/;
-
 if ($mf_fipscanisterinternal eq "y") {
 	$fips = 1;
 	$fipscanisterbuild = 1;
@@ -1077,8 +1075,7 @@ sub var_add
 	@a=grep(!/(rmd)|(ripemd)/,@a) if $no_ripemd;
 
 	@a=grep(!/(^d2i_r_)|(^i2d_r_)/,@a) if $no_rsa;
-	@a=grep(!/(^p_open$)|(^p_seal$)/,@a) if $no_rsa;
-	@a=grep(!/(^pem_seal$)/,@a) if $no_rsa;
+	@a=grep(!/(^p_open$)/,@a) if $no_rsa;
 
 	@a=grep(!/(m_dss$)|(m_dss1$)/,@a) if $no_dsa;
 	@a=grep(!/(^d2i_s_)|(^i2d_s_)|(_dsap$)/,@a) if $no_dsa;
@@ -1402,6 +1399,7 @@ sub read_options
 		"rsaref" => 0,
 		"gcc" => \$gcc,
 		"debug" => \$debug,
+		"--debug" => \$debug,
 		"profile" => \$profile,
 		"shlib" => \$shlib,
 		"dll" => \$shlib,
@@ -1419,6 +1417,7 @@ sub read_options
 		"no-unit-test" => 0,
 		"no-deprecated" => 0,
 		"no-ocb" => 0,
+		"no-crypto-mdebug" => 0,
 		"fips" => \$fips,
 		"fipscanisterbuild" => [\$fips, \$fipscanisterbuild],
 		"fipscanisteronly" => [\$fips, \$fipscanisterbuild, \$fipscanisteronly],

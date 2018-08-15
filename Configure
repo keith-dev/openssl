@@ -4,7 +4,7 @@
 ##
 ##  Configure -- OpenSSL source tree configuration script
 ##  If editing this file, run this command before committing
-##	make -f Makefile.org TABLE
+##	make -f Makefile.in TABLE
 ##
 
 require 5.000;
@@ -34,6 +34,9 @@ my $usage="Usage: Configure [no-<cipher> ...] [enable-<cipher> ...] [experimenta
 #               This is a debugging tool for OpenSSL developers.
 #
 # --cross-compile-prefix Add specified prefix to binutils components.
+#
+# --api         One of 0.9.8, 1.0.0 or 1.1.0.  Do not compile support for
+#               interfaces deprecated as of the specified OpenSSL version.
 #
 # no-hw-xxx     do not compile support for specific crypto hardware.
 #               Generic OpenSSL-style methods relating to this support
@@ -97,7 +100,7 @@ my $usage="Usage: Configure [no-<cipher> ...] [enable-<cipher> ...] [experimenta
 # Minimum warning options... any contributions to OpenSSL should at least get
 # past these.
 
-my $gcc_devteam_warn = "-Wall -pedantic -DPEDANTIC -Wno-long-long -Wsign-compare -Wmissing-prototypes -Wshadow -Wformat -Wtype-limits -Werror -DCRYPTO_MDEBUG_ALL -DCRYPTO_MDEBUG_ABORT -DREF_CHECK -DDEBUG_UNUSED";
+my $gcc_devteam_warn = "-Wall -pedantic -DPEDANTIC -Wno-long-long -Wsign-compare -Wmissing-prototypes -Wshadow -Wformat -Wtype-limits -Werror -DREF_CHECK -DDEBUG_UNUSED";
 
 # These are used in addition to $gcc_devteam_warn when the compiler is clang.
 # TODO(openssl-team): fix problems and investigate if (at least) the
@@ -107,6 +110,9 @@ my $gcc_devteam_warn = "-Wall -pedantic -DPEDANTIC -Wno-long-long -Wsign-compare
 # -Wunreachable-code -Wunused-parameter -Wlanguage-extension-token
 # -Wextended-offsetof
 my $clang_devteam_warn = "-Wno-unused-parameter -Wno-missing-field-initializers -Wno-language-extension-token -Wno-extended-offsetof -Wconditional-uninitialized -Qunused-arguments -Wincompatible-pointer-types-discards-qualifiers -Wmissing-variable-declarations";
+
+# Warn that "make depend" should be run?
+my $warn_make_depend = 0;
 
 # These are used in addition to $gcc_devteam_warn unless this is a mingw build.
 # This adds backtrace information to the memory leak info.
@@ -133,6 +139,16 @@ my $bits2="SIXTY_FOUR_BIT ";
 # sometimes -D_REENTRANT. FreeBSD 5.x expands it as -lc_r, which
 # seems to be sufficient?
 my $BSDthreads="-pthread -D_THREAD_SAFE -D_REENTRANT";
+
+#
+# API compability name to version number mapping.
+#
+my $maxapi = "1.1.0";           # API for "no-deprecated" builds
+my $apitable = {
+    "1.1.0" => "0x10100000L",
+    "1.0.0" => "0x10000000L",
+    "0.9.8" => "0x00908000L",
+};
 
 # table of known configurations, read in from files
 #
@@ -215,6 +231,8 @@ my $BSDthreads="-pthread -D_THREAD_SAFE -D_REENTRANT";
 #	  cmll_obj => $cmll_obj,
 #	  modes_obj => $modes_obj,
 #	  engines_obj => $engines_obj,
+#	  chacha_obj => $wp_obj,
+#	  poly1305_obj => $cmll_obj,
 #	  dso_scheme => $dso_scheme,
 #	  shared_target => $shared_target,
 #	  shared_cflag => $shared_cflag,
@@ -776,7 +794,6 @@ my $zlib=1;      # but "no-zlib" is default
 my $no_rfc3779=0;
 my $no_asm=0;
 my $no_dso=0;
-my $no_gmp=0;
 my @skip=();
 my $Makefile="Makefile";
 my $des_locl="crypto/des/des_locl.h";
@@ -796,6 +813,7 @@ my $cast_enc="c_enc.o";
 my $rc4_enc="rc4_enc.o rc4_skey.o";
 my $rc5_enc="rc5_enc.o";
 my $cmll_enc="camellia.o cmll_misc.o cmll_cbc.o";
+my $chacha_enc="chacha_enc.o";
 my $processor="";
 my $default_ranlib;
 my $perl;
@@ -816,6 +834,7 @@ my @disablables = (
     "cmac",
     "cms",
     "comp",
+    "crypto-mdebug",
     "ct",
     "deprecated",
     "des",
@@ -823,14 +842,13 @@ my @disablables = (
     "dh",
     "dsa",
     "dso",
-    "dtls1?",
+    "dtls",
     "dynamic[-_]engine",
     "ec",
     "ec2m",
     "ec_nistp_64_gcc_128",
     "engine",
     "err",			# Really???
-    "gmp",
     "gost",
     "heartbeats",
     "hmac",
@@ -886,25 +904,24 @@ my @disablables = (
 # All of the following is disabled by default (RC5 was enabled before 0.9.8):
 
 my %disabled = ( # "what"         => "comment" [or special keyword "experimental"]
-		 "deprecated" => "default",
 		 "ec_nistp_64_gcc_128" => "default",
-		 "gmp"		  => "default",
 		 "jpake"          => "experimental",
 		 "md2"            => "default",
 		 "rc5"            => "default",
-		 "sctp"       => "default",
+		 "sctp"           => "default",
 		 "shared"         => "default",
 		 "ssl-trace"	  => "default",
 		 "store"	  => "experimental",
 		 "unit-test"	  => "default",
 		 "zlib"           => "default",
-		 "zlib-dynamic"   => "default"
+		 "zlib-dynamic"   => "default",
+		 "crypto-mdebug"  => "default",
 	       );
 my @experimental = ();
 
 # This is what $depflags will look like with the above defaults
 # (we need this to see if we should advise the user to run "make depend"):
-my $default_depflags = " -DOPENSSL_NO_DEPRECATED -DOPENSSL_NO_EC_NISTP_64_GCC_128 -DOPENSSL_NO_GMP -DOPENSSL_NO_JPAKE -DOPENSSL_NO_MD2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_SCTP -DOPENSSL_NO_SSL_TRACE -DOPENSSL_NO_STORE -DOPENSSL_NO_UNIT_TEST";
+my $default_depflags = " -DOPENSSL_NO_CRYPTO_MDEBUG -DOPENSSL_NO_EC_NISTP_64_GCC_128 -DOPENSSL_NO_JPAKE -DOPENSSL_NO_MD2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_SCTP -DOPENSSL_NO_SSL_TRACE -DOPENSSL_NO_STORE -DOPENSSL_NO_UNIT_TEST";
 
 # Explicit "no-..." options will be collected in %disabled along with the defaults.
 # To remove something from %disabled, use "enable-foo" (unless it's experimental).
@@ -929,6 +946,7 @@ my $openssl_other_defines;
 my $libs;
 my $target;
 my $options;
+my $api;
 my $make_depend=0;
 my %withargs=();
 my $build_prefix = "release_";
@@ -1032,6 +1050,7 @@ PROCESS_ARGS:
 			{
 			if (open(IN,"<$Makefile"))
 				{
+				my $config_args_found=0;
 				while (<IN>)
 					{
 					chomp;
@@ -1043,11 +1062,19 @@ PROCESS_ARGS:
 							if (grep(/^reconf/,@argvcopy));
 						print "Reconfiguring with: $argvstring\n";
 						$argv_unprocessed=1;
-						close(IN);
-						last PROCESS_ARGS;
+						$config_args_found=1;
+						}
+					elsif (/^CROSS_COMPILE=\s*(.*)/)
+						{
+						$ENV{CROSS_COMPILE}=$1;
+						}
+					elsif (/^CC=\s*(?:\$\(CROSS_COMPILE\))?(.*?)$/)
+						{
+						$ENV{CC}=$1;
 						}
 					}
 				close(IN);
+				last PROCESS_ARGS if ($config_args_found);
 				}
 			die "Insufficient data to reconfigure, please do a normal configuration\n";
 			}
@@ -1073,6 +1100,10 @@ PROCESS_ARGS:
 			if (/^--prefix=(.*)$/)
 				{
 				$prefix=$1;
+				}
+			elsif (/^--api=(.*)$/)
+				{
+				$api=$1;
 				}
 			elsif (/^--libdir=(.*)$/)
 				{
@@ -1145,6 +1176,10 @@ PROCESS_ARGS:
 			}
 		}
 
+        if (defined($api) && !exists $apitable->{$api}) {
+		die "***** Unsupported api compatibility level: $api\n",
+        }
+
 	if (keys %unsupported_options)
 		{
 		die "***** Unsupported options: ",
@@ -1188,6 +1223,10 @@ if (defined($disabled{"md5"}) || defined($disabled{"sha"})
 	$disabled{"tls1"} = "forced";
 	}
 
+if (defined($disabled{"dgram"}))
+	{
+        $disabled{"dtls"} = "forced";
+        }
 
 if (defined($disabled{"ec"}) || defined($disabled{"dsa"})
     || defined($disabled{"dh"}) || defined($disabled{"stdio"}))
@@ -1373,6 +1412,8 @@ my $wp_obj = $table{$target}->{wp_obj};
 my $cmll_obj = $table{$target}->{cmll_obj};
 my $modes_obj = $table{$target}->{modes_obj};
 my $engines_obj = $table{$target}->{engines_obj};
+my $chacha_obj = $table{$target}->{chacha_obj};
+my $poly1305_obj = $table{$target}->{poly1305_obj};
 my $perlasm_scheme = $table{$target}->{perlasm_scheme};
 my $dso_scheme = $table{$target}->{dso_scheme};
 my $shared_target = $table{$target}->{shared_target};
@@ -1483,7 +1524,8 @@ if ($no_asm)
 	{
 	$cpuid_obj=$bn_obj=$ec_obj=
 	$des_obj=$aes_obj=$bf_obj=$cast_obj=$rc4_obj=$rc5_obj=$cmll_obj=
-	$modes_obj=$sha1_obj=$md5_obj=$rmd160_obj=$wp_obj=$engines_obj="";
+	$modes_obj=$sha1_obj=$md5_obj=$rmd160_obj=$wp_obj=$engines_obj=
+	$chacha_obj=$poly1305_obj="";
 	$cflags=~s/\-D[BL]_ENDIAN//		if ($fips);
 	$thread_cflags=~s/\-D[BL]_ENDIAN//	if ($fips);
 	}
@@ -1523,13 +1565,12 @@ if ($zlib)
 		}
 	}
 
-#Build the library with OPENSSL_USE_DEPRECATED if deprecation is not disabled
-if(!defined($disabled{"deprecated"}))
-	{
-	$cflags = "-DOPENSSL_USE_DEPRECATED $cflags";
-	}
+# With "deprecated" disable all deprecated features.
+if (defined($disabled{"deprecated"})) {
+        $api = $maxapi;
+}
 
-# You will find shlib_mark1 and shlib_mark2 explained in Makefile.org
+# You will find shlib_mark1 and shlib_mark2 explained in Makefile.in
 my $shared_mark = "";
 if ($shared_target eq "")
 	{
@@ -1702,6 +1743,11 @@ if ($ec_obj =~ /ecp_nistz256/)
 	{
 	$cflags.=" -DECP_NISTZ256_ASM";
 	}
+$chacha_obj=$chacha_enc	unless ($chacha_obj =~ /\.o$/);
+if ($poly1305_obj =~ /\.o$/)
+	{
+	$cflags.=" -DPOLY1305_ASM";
+	}
 
 # "Stringify" the C flags string.  This permits it to be made part of a string
 # and works as well on command lines.
@@ -1720,7 +1766,7 @@ open(IN,'<include/openssl/opensslv.h') || die "unable to read opensslv.h:$!\n";
 while (<IN>)
 	{
 	$version=$1 if /OPENSSL.VERSION.TEXT.*OpenSSL (\S+) /;
-	$version_num=$1 if /OPENSSL.VERSION.NUMBER.*0x(\S+)/;
+	$version_num=$1 if /OPENSSL.VERSION.NUMBER.*(0x\S+)/;
 	$shlib_version_number=$1 if /SHLIB_VERSION_NUMBER *"([^"]+)"/;
 	$shlib_version_history=$1 if /SHLIB_VERSION_HISTORY *"([^"]*)"/;
 	}
@@ -1738,6 +1784,12 @@ if ($shlib_version_number =~ /(^[0-9]*)\.([0-9\.]*)/)
 	$shlib_major=$1;
 	$shlib_minor=$2;
 	}
+
+if (defined($api)) {
+    my $apiflag = sprintf("-DOPENSSL_API_COMPAT=%s", $apitable->{$api});
+    $default_depflags .= " $apiflag";
+    $cflags .= " $apiflag";
+}
 
 my $ecc = $cc;
 $ecc = "clang" if `$cc --version 2>&1` =~ /clang/;
@@ -1770,10 +1822,10 @@ if ($strict_warnings)
                 }
 	}
 
-open(IN,"<Makefile.org") || die "unable to read Makefile.org:$!\n";
+open(IN,"<Makefile.in") || die "unable to read Makefile.in$!\n";
 unlink("$Makefile.new") || die "unable to remove old $Makefile.new:$!\n" if -e "$Makefile.new";
 open(OUT,">$Makefile.new") || die "unable to create $Makefile.new:$!\n";
-print OUT "### Generated automatically from Makefile.org by Configure.\n\n";
+print OUT "### Generated automatically from Makefile.in by Configure.\n\n";
 my $sdirs=0;
 
 while (<IN>)
@@ -1841,6 +1893,8 @@ while (<IN>)
 	s/^WP_ASM_OBJ=.*$/WP_ASM_OBJ= $wp_obj/;
 	s/^CMLL_ENC=.*$/CMLL_ENC= $cmll_obj/;
 	s/^MODES_ASM_OBJ.=*$/MODES_ASM_OBJ= $modes_obj/;
+	s/^CHACHA_ENC=.*$/CHACHA_ENC= $chacha_obj/;
+	s/^POLY1305_ASM_OBJ=.*$/POLY1305_ASM_OBJ= $poly1305_obj/;
 	s/^ENGINES_ASM_OBJ.=*$/ENGINES_ASM_OBJ= $engines_obj/;
 	s/^PERLASM_SCHEME=.*$/PERLASM_SCHEME= $perlasm_scheme/;
 	s/^PROCESSOR=.*/PROCESSOR= $processor/;
@@ -1879,7 +1933,7 @@ while (<IN>)
 	}
 close(IN);
 close(OUT);
-rename($Makefile,"$Makefile.bak") || die "unable to rename $Makefile\n" if -e $Makefile;
+rename($Makefile,"$Makefile.orig") || die "unable to rename $Makefile\n" if -e $Makefile;
 rename("$Makefile.new",$Makefile) || die "unable to rename $Makefile.new\n";
 
 print "CC            =$cc\n";
@@ -1900,6 +1954,8 @@ print "RMD160_OBJ_ASM=$rmd160_obj\n";
 print "CMLL_ENC      =$cmll_obj\n";
 print "MODES_OBJ     =$modes_obj\n";
 print "ENGINES_OBJ   =$engines_obj\n";
+print "CHACHA_ENC    =$chacha_obj\n";
+print "POLY1305_OBJ  =$poly1305_obj\n";
 print "PROCESSOR     =$processor\n";
 print "RANLIB        =$ranlib\n";
 print "ARFLAGS       =$arflags\n";
@@ -1963,6 +2019,11 @@ print OUT "#ifdef  __cplusplus\n";
 print OUT "extern \"C\" {\n";
 print OUT "#endif\n";
 print OUT "/* OpenSSL was configured with the following options: */\n";
+
+my $openssl_api_defines = "";
+if (defined($api)) {
+    $openssl_api_defines = sprintf "#define OPENSSL_MIN_API %s\n", $apitable->{$api};
+}
 my $openssl_algorithm_defines_trans = $openssl_algorithm_defines;
 $openssl_experimental_defines =~ s/^\s*#\s*define\s+OPENSSL_NO_(.*)/#ifndef OPENSSL_EXPERIMENTAL_$1\n# ifndef OPENSSL_NO_$1\n#  define OPENSSL_NO_$1\n# endif\n#endif/mg;
 $openssl_algorithm_defines_trans =~ s/^\s*#\s*define\s+OPENSSL_(.*)/# if defined(OPENSSL_$1) \&\& !defined($1)\n#  define $1\n# endif/mg;
@@ -1971,9 +2032,11 @@ $openssl_algorithm_defines = "   /* no ciphers excluded */\n" if $openssl_algori
 $openssl_thread_defines =~ s/^\s*#\s*define\s+(.*)/#ifndef $1\n# define $1\n#endif/mg;
 $openssl_sys_defines =~ s/^\s*#\s*define\s+(.*)/#ifndef $1\n# define $1\n#endif/mg;
 $openssl_other_defines =~ s/^\s*#\s*define\s+(.*)/#ifndef $1\n# define $1\n#endif/mg;
+
 print OUT $openssl_sys_defines;
 print OUT "#ifndef OPENSSL_DOING_MAKEDEPEND\n\n";
 print OUT $openssl_experimental_defines;
+print OUT $openssl_api_defines;
 print OUT "\n";
 print OUT $openssl_algorithm_defines;
 print OUT "\n#endif /* OPENSSL_DOING_MAKEDEPEND */\n\n";
@@ -2026,8 +2089,8 @@ while (<IN>)
 		{ printf OUT "#%s EIGHT_BIT\n",($b8)?"define":"undef"; }
 	elsif	(/^#((define)|(undef))\s+BN_LLONG\s*$/)
 		{ printf OUT "#%s BN_LLONG\n",($bn_ll)?"define":"undef"; }
-	elsif	(/^\#define\s+DES_LONG\s+.*/)
-		{ printf OUT "#define DES_LONG unsigned %s\n",
+	elsif	(/^\#define\s+OSSL_DES_LONG\s+.*/)
+		{ printf OUT "#define OSSL_DES_LONG unsigned %s\n",
 			($des_int)?'int':'long'; }
 	elsif	(/^\#(define|undef)\s+DES_PTR/)
 		{ printf OUT "#%s DES_PTR\n",($des_ptr)?'define':'undef'; }
@@ -2098,6 +2161,27 @@ print "RC2 uses u$type[$rc2_int]\n" if $rc2_int != $def_int;
 print "BF_PTR used\n" if $bf_ptr == 1;
 print "BF_PTR2 used\n" if $bf_ptr == 2;
 
+# Copy all Makefile.in to Makefile (except top-level)
+use File::Find;
+use IO::File;
+find(sub {
+        return if ($_ ne "Makefile.in" || $File::Find::dir eq ".");
+        my $in = IO::File->new($_, "r") or
+            die sprintf "Error reading Makefile.in in %s: !$\n",
+                $File::Find::dir;
+        my $out = IO::File->new("Makefile", "w") or
+            die sprintf "Error writing Makefile in %s: !$\n",
+                $File::Find::dir;
+        print $out "# Generated from $_, do not edit\n";
+        while (my $line = <$in>) { print $out $line }
+        $in->close() or
+            die sprintf "Error reading Makefile.in in %s: !$\n",
+                $File::Find::dir;
+        $out->close() or
+            die sprintf "Error writing Makefile in %s: !$\n",
+                $File::Find::dir;
+    }, ".");
+
 {
     my $perlguess = $perl =~ m@^/@ ? $perl : '/usr/local/bin/perl';
 
@@ -2127,20 +2211,14 @@ EOF
 	(system $make_command.$make_targets) == 0 or die "make $make_targets failed"
 		if $make_targets ne "";
 	if ($depflags ne $default_depflags && !$make_depend) {
-		print <<EOF;
-
-Since you've disabled or enabled at least one algorithm, you need to do
-the following before building:
-
-	make depend
-EOF
-	}
+            $warn_make_depend++;
+        }
 }
 
 # create the ms/version32.rc file if needed
 if ($IsMK1MF && ($target !~ /^netware/)) {
 	my ($v1, $v2, $v3, $v4);
-	if ($version_num =~ /(^[0-9a-f]{1})([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i) {
+	if ($version_num =~ /^0x([0-9a-f]{1})([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{1})L$/i) {
 		$v1=hex $1;
 		$v2=hex $2;
 		$v3=hex $3;
@@ -2213,12 +2291,18 @@ EOF
 
 print <<\EOF if ($no_shared_warn);
 
-You gave the option 'shared'.  Normally, that would give you shared libraries.
-Unfortunately, the OpenSSL configuration doesn't include shared library support
-for this platform yet, so it will pretend you gave the option 'no-shared'.  If
-you can inform the developpers (openssl-dev\@openssl.org) how to support shared
-libraries on this platform, they will at least look at it and try their best
-(but please first make sure you have tried with a current version of OpenSSL).
+You gave the option 'shared', which is not supported on this platform, so
+we will pretend you gave the option 'no-shared'.  If you know how to implement
+shared libraries, please let us know (but please first make sure you have
+tried with a current version of OpenSSL).
+EOF
+
+print <<EOF if ($warn_make_depend);
+
+*** Because of configuration changes, you MUST do the following before
+*** building:
+
+	make depend
 EOF
 
 exit(0);
@@ -2328,6 +2412,8 @@ sub print_table_entry
 \$cmll_obj     = $table{$target}->{cmll_obj}
 \$modes_obj    = $table{$target}->{modes_obj}
 \$engines_obj  = $table{$target}->{engines_obj}
+\$chacha_obj   = $table{$target}->{chacha_obj}
+\$poly1305_obj = $table{$target}->{poly1305_obj}
 \$perlasm_scheme = $table{$target}->{perlasm_scheme}
 \$dso_scheme   = $table{$target}->{dso_scheme}
 \$shared_target= $table{$target}->{shared_target}
@@ -2367,6 +2453,8 @@ EOF
 		"cmll_obj",
 		"modes_obj",
 		"engines_obj",
+		"chacha_obj",
+		"poly1305_obj",
 		"perlasm_scheme",
 		"dso_scheme",
 		"shared_target",

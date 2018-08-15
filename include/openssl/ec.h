@@ -85,7 +85,7 @@
 
 # include <openssl/asn1.h>
 # include <openssl/symhacks.h>
-# ifdef OPENSSL_USE_DEPRECATED
+# if OPENSSL_API_COMPAT < 0x10100000L
 #  include <openssl/bn.h>
 # endif
 
@@ -589,6 +589,20 @@ size_t EC_POINT_point2oct(const EC_GROUP *group, const EC_POINT *p,
 int EC_POINT_oct2point(const EC_GROUP *group, EC_POINT *p,
                        const unsigned char *buf, size_t len, BN_CTX *ctx);
 
+/** Encodes an EC_POINT object to an allocated octet string
+ *  \param  group  underlying EC_GROUP object
+ *  \param  point  EC_POINT object
+ *  \param  form   point conversion form
+ *  \param  pbuf   returns pointer to allocated buffer
+ *  \param  len    length of the memory buffer
+ *  \param  ctx    BN_CTX object (optional)
+ *  \return the length of the encoded octet string or 0 if an error occurred
+ */
+
+size_t EC_POINT_point2buf(const EC_GROUP *group, const EC_POINT *point,
+                          point_conversion_form_t form,
+                          unsigned char **pbuf, BN_CTX *ctx);
+
 /* other interfaces to point2oct/oct2point: */
 BIGNUM *EC_POINT_point2bn(const EC_GROUP *, const EC_POINT *,
                           point_conversion_form_t form, BIGNUM *, BN_CTX *);
@@ -777,13 +791,13 @@ void EC_KEY_free(EC_KEY *key);
  *  \param  src  src EC_KEY object
  *  \return dst or NULL if an error occurred.
  */
-EC_KEY *EC_KEY_copy(EC_KEY *dst, const EC_KEY *src);
+EC_KEY *EC_KEY_copy(EC_KEY *dst, EC_KEY *src);
 
 /** Creates a new EC_KEY object and copies the content from src to it.
  *  \param  src  the source EC_KEY object
  *  \return newly created EC_KEY object or NULL if an error occurred.
  */
-EC_KEY *EC_KEY_dup(const EC_KEY *src);
+EC_KEY *EC_KEY_dup(EC_KEY *src);
 
 /** Increases the internal reference count of a EC_KEY object.
  *  \param  key  EC_KEY object
@@ -837,23 +851,12 @@ unsigned EC_KEY_get_enc_flags(const EC_KEY *key);
 void EC_KEY_set_enc_flags(EC_KEY *eckey, unsigned int flags);
 point_conversion_form_t EC_KEY_get_conv_form(const EC_KEY *key);
 void EC_KEY_set_conv_form(EC_KEY *eckey, point_conversion_form_t cform);
-/* functions to set/get method specific data  */
-void *EC_KEY_get_key_method_data(EC_KEY *key,
-                                 void *(*dup_func) (void *),
-                                 void (*free_func) (void *),
-                                 void (*clear_free_func) (void *));
-/** Sets the key method data of an EC_KEY object, if none has yet been set.
- *  \param  key              EC_KEY object
- *  \param  data             opaque data to install.
- *  \param  dup_func         a function that duplicates |data|.
- *  \param  free_func        a function that frees |data|.
- *  \param  clear_free_func  a function that wipes and frees |data|.
- *  \return the previously set data pointer, or NULL if |data| was inserted.
- */
-void *EC_KEY_insert_key_method_data(EC_KEY *key, void *data,
-                                    void *(*dup_func) (void *),
-                                    void (*free_func) (void *),
-                                    void (*clear_free_func) (void *));
+
+#define EC_KEY_get_ex_new_index(l, p, newf, dupf, freef) \
+    CRYPTO_get_ex_new_index(CRYPTO_EX_INDEX_EC_KEY, l, p, newf, dupf, freef)
+int EC_KEY_set_ex_data(EC_KEY *key, int idx, void *arg);
+void *EC_KEY_get_ex_data(const EC_KEY *key, int idx);
+
 /* wrapper functions for the underlying EC_GROUP object */
 void EC_KEY_set_asn1_flag(EC_KEY *eckey, int asn1_flag);
 
@@ -886,6 +889,29 @@ int EC_KEY_check_key(const EC_KEY *key);
  */
 int EC_KEY_set_public_key_affine_coordinates(EC_KEY *key, BIGNUM *x,
                                              BIGNUM *y);
+
+/** Encodes an EC_KEY public key to an allocated octet string
+ *  \param  key    key to encode
+ *  \param  form   point conversion form
+ *  \param  pbuf   returns pointer to allocated buffer
+ *  \param  len    length of the memory buffer
+ *  \param  ctx    BN_CTX object (optional)
+ *  \return the length of the encoded octet string or 0 if an error occurred
+ */
+
+size_t EC_KEY_key2buf(const EC_KEY *key, point_conversion_form_t form,
+                      unsigned char **pbuf, BN_CTX *ctx);
+
+/** Decodes a EC_KEY public key from a octet string
+ *  \param  key    key to decode
+ *  \param  buf    memory buffer with the encoded ec point
+ *  \param  len    length of the encoded ec point
+ *  \param  ctx    BN_CTX object (optional)
+ *  \return 1 on success and 0 if an error occurred
+ */
+
+int EC_KEY_oct2key(EC_KEY *key, const unsigned char *buf, size_t len,
+                   BN_CTX *ctx);
 
 /********************************************************************/
 /*        de- and encoding functions for SEC1 ECPrivateKey          */
@@ -986,6 +1012,8 @@ int EC_KEY_print_fp(FILE *fp, const EC_KEY *key, int off);
 const EC_KEY_METHOD *EC_KEY_OpenSSL(void);
 const EC_KEY_METHOD *EC_KEY_get_default_method(void);
 void EC_KEY_set_default_method(const EC_KEY_METHOD *meth);
+const EC_KEY_METHOD *EC_KEY_get_method(const EC_KEY *key);
+int EC_KEY_set_method(EC_KEY *key, const EC_KEY_METHOD *meth);
 EC_KEY *EC_KEY_new_method(ENGINE *engine);
 
 int ECDH_KDF_X9_62(unsigned char *out, size_t outlen,
@@ -994,8 +1022,9 @@ int ECDH_KDF_X9_62(unsigned char *out, size_t outlen,
                    const EVP_MD *md);
 
 int ECDH_compute_key(void *out, size_t outlen, const EC_POINT *pub_key,
-                     EC_KEY *ecdh, void *(*KDF) (const void *in, size_t inlen,
-                                                 void *out, size_t *outlen));
+                     const EC_KEY *ecdh,
+                     void *(*KDF) (const void *in, size_t inlen,
+                                   void *out, size_t *outlen));
 
 typedef struct ECDSA_SIG_st ECDSA_SIG;
 
@@ -1151,7 +1180,7 @@ void EC_KEY_METHOD_set_compute_key(EC_KEY_METHOD *meth,
                                    int (*ckey)(void *out,
                                                size_t outlen,
                                                const EC_POINT *pub_key,
-                                               EC_KEY *ecdh,
+                                               const EC_KEY *ecdh,
                                                void *(*KDF) (const void *in,
                                                              size_t inlen,
                                                              void *out,
@@ -1199,7 +1228,7 @@ void EC_KEY_METHOD_get_compute_key(EC_KEY_METHOD *meth,
                                    int (**pck)(void *out,
                                                size_t outlen,
                                                const EC_POINT *pub_key,
-                                               EC_KEY *ecdh,
+                                               const EC_KEY *ecdh,
                                                void *(*KDF) (const void *in,
                                                              size_t inlen,
                                                              void *out,

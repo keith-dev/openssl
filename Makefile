@@ -1,10 +1,10 @@
-### Generated automatically from Makefile.org by Configure.
+### Generated automatically from Makefile.in by Configure.
 
 ##
 ## Makefile for OpenSSL
 ##
 
-VERSION=1.1.0-pre1
+VERSION=1.1.0-pre2
 MAJOR=1
 MINOR=1.0
 SHLIB_VERSION_NUMBER=1.1
@@ -13,7 +13,7 @@ SHLIB_MAJOR=1
 SHLIB_MINOR=1
 SHLIB_EXT=
 PLATFORM=dist
-OPTIONS= no-deprecated no-ec_nistp_64_gcc_128 no-gmp no-jpake no-md2 no-rc5 no-sctp no-shared no-ssl-trace no-store no-unit-test no-zlib no-zlib-dynamic static-engine
+OPTIONS= no-crypto-mdebug no-ec_nistp_64_gcc_128 no-jpake no-md2 no-rc5 no-sctp no-shared no-ssl-trace no-store no-unit-test no-zlib no-zlib-dynamic static-engine
 CONFIGURE_ARGS=dist
 SHLIB_TARGET=
 
@@ -48,7 +48,6 @@ OPENSSLDIR=/usr/local/ssl
 # LOCK_DEBUG - turns on lots of lock debug output :-)
 # REF_CHECK - turn on some xyz_free() assertions.
 # REF_PRINT - prints some stuff on structure free.
-# CRYPTO_MDEBUG - turns on my 'memory leak' detecting stuff
 # MFUNC - Make all Malloc/Free/Realloc calls call
 #       CRYPTO_malloc/CRYPTO_free/CRYPTO_realloc which can be setup to
 #       call application defined callbacks via CRYPTO_set_mem_functions()
@@ -61,7 +60,7 @@ OPENSSLDIR=/usr/local/ssl
 
 CC= cc
 CFLAG= -O
-DEPFLAG= -DOPENSSL_NO_DEPRECATED -DOPENSSL_NO_EC_NISTP_64_GCC_128 -DOPENSSL_NO_GMP -DOPENSSL_NO_JPAKE -DOPENSSL_NO_MD2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_SCTP -DOPENSSL_NO_SSL_TRACE -DOPENSSL_NO_STORE -DOPENSSL_NO_UNIT_TEST
+DEPFLAG= -DOPENSSL_NO_CRYPTO_MDEBUG -DOPENSSL_NO_EC_NISTP_64_GCC_128 -DOPENSSL_NO_JPAKE -DOPENSSL_NO_MD2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_SCTP -DOPENSSL_NO_SSL_TRACE -DOPENSSL_NO_STORE -DOPENSSL_NO_UNIT_TEST
 PEX_LIBS= 
 EX_LIBS= 
 EXE_EXT= 
@@ -106,6 +105,8 @@ WP_ASM_OBJ= wp_block.o
 CMLL_ENC= camellia.o cmll_misc.o cmll_cbc.o
 MODES_ASM_OBJ= 
 ENGINES_ASM_OBJ= 
+CHACHA_ENC= chacha_enc.o
+POLY1305_ASM_OBJ= 
 PERLASM_SCHEME= 
 
 # Zlib stuff
@@ -237,6 +238,8 @@ BUILDENV=	LC_ALL=C PLATFORM='$(PLATFORM)' PROCESSOR='$(PROCESSOR)'\
 		WP_ASM_OBJ='$(WP_ASM_OBJ)'			\
 		MODES_ASM_OBJ='$(MODES_ASM_OBJ)'		\
 		ENGINES_ASM_OBJ='$(ENGINES_ASM_OBJ)'		\
+		CHACHA_ENC='$(CHACHA_ENC)'			\
+		POLY1305_ASM_OBJ='$(POLY1305_ASM_OBJ)'		\
 		PERLASM_SCHEME='$(PERLASM_SCHEME)'		\
 		FIPSLIBDIR='${FIPSLIBDIR}'			\
 		FIPSCANLIB="$${FIPSCANLIB:-$(FIPSCANLIB)}"	\
@@ -392,8 +395,8 @@ openssl.pc: Makefile
 	    echo 'Version: '$(VERSION); \
 	    echo 'Requires: libssl libcrypto' ) > openssl.pc
 
-Makefile: Makefile.org Configure config
-	@echo "Makefile is older than Makefile.org, Configure or config."
+Makefile: Makefile.in Configure config
+	@echo "Makefile is older than Makefile.in, Configure or config."
 	@echo "Reconfigure the source tree (via './config' or 'perl Configure'), please."
 	@false
 
@@ -425,13 +428,14 @@ dclean:
 	@set -e; target=dclean; $(RECURSIVE_BUILD_CMD)
 
 rehash: rehash.time
-rehash.time: certs apps
+rehash.time: certs build_apps
 	@if [ -z "$(CROSS_COMPILE)" ]; then \
 		(OPENSSL="`pwd`/util/opensslwrap.sh"; \
 		[ -x "apps/openssl.exe" ] && OPENSSL="apps/openssl.exe" || :; \
 		OPENSSL_DEBUG_MEMORY=on; OPENSSL_CONF=/dev/null ; \
 		export OPENSSL OPENSSL_DEBUG_MEMORY OPENSSL_CONF; \
-		$$OPENSSL rehash certs/demo) && \
+		$$OPENSSL rehash certs/demo \
+		|| $(PERL) tools/c_rehash certs/demo) && \
 		touch rehash.time; \
 	else :; fi
 
@@ -454,7 +458,7 @@ list-tests:
 report:
 	@$(PERL) util/selftest.pl
 
-update: errors stacks util/libeay.num util/ssleay.num TABLE test_ordinals
+update: errors util/libeay.num util/ssleay.num TABLE test_ordinals
 	@set -e; target=update; $(RECURSIVE_BUILD_CMD)
 
 depend:
@@ -466,7 +470,7 @@ lint:
 tags TAGS: FORCE
 	rm -f TAGS tags
 	-ctags -R .
-	-etags -R .
+	-etags `find . -name '*.[ch]' -o -name '*.pm'`
 
 FORCE:
 
@@ -475,9 +479,6 @@ errors:
 	$(PERL) util/mkerr.pl -recurse -write
 	(cd engines; $(MAKE) PERL=$(PERL) errors)
 	(cd crypto/ct; $(MAKE) PERL=$(PERL) errors)
-
-stacks:
-	$(PERL) util/mkstack.pl -write
 
 util/libeay.num::
 	$(PERL) util/mkdef.pl crypto update

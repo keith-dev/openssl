@@ -92,7 +92,6 @@ static const EVP_PKEY_ASN1_METHOD *standard_methods[] = {
 };
 
 typedef int sk_cmp_fn_type(const char *const *a, const char *const *b);
-DECLARE_STACK_OF(EVP_PKEY_ASN1_METHOD)
 static STACK_OF(EVP_PKEY_ASN1_METHOD) *app_methods = NULL;
 
 #ifdef TEST
@@ -285,13 +284,13 @@ EVP_PKEY_ASN1_METHOD *EVP_PKEY_asn1_new(int id, int flags,
     ameth->pkey_flags = flags | ASN1_PKEY_DYNAMIC;
 
     if (info) {
-        ameth->info = BUF_strdup(info);
+        ameth->info = OPENSSL_strdup(info);
         if (!ameth->info)
             goto err;
     }
 
     if (pem_str) {
-        ameth->pem_str = BUF_strdup(pem_str);
+        ameth->pem_str = OPENSSL_strdup(pem_str);
         if (!ameth->pem_str)
             goto err;
     }

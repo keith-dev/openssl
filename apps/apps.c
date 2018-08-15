@@ -432,14 +432,14 @@ static char *app_get_pass(char *arg, int keepbio)
     int i;
 
     if (strncmp(arg, "pass:", 5) == 0)
-        return BUF_strdup(arg + 5);
+        return OPENSSL_strdup(arg + 5);
     if (strncmp(arg, "env:", 4) == 0) {
         tmp = getenv(arg + 4);
         if (!tmp) {
             BIO_printf(bio_err, "Can't read environment variable %s\n", arg + 4);
             return NULL;
         }
-        return BUF_strdup(tmp);
+        return OPENSSL_strdup(tmp);
     }
     if (!keepbio || !pwdbio) {
         if (strncmp(arg, "file:", 5) == 0) {
@@ -495,7 +495,7 @@ static char *app_get_pass(char *arg, int keepbio)
     tmp = strchr(tpass, '\n');
     if (tmp)
         *tmp = 0;
-    return BUF_strdup(tpass);
+    return OPENSSL_strdup(tpass);
 }
 
 static CONF *app_load_config_(BIO *in, const char *filename)
@@ -1444,7 +1444,7 @@ int save_serial(char *serialfile, char *suffix, BIGNUM *serial,
     }
 
     if (suffix == NULL)
-        BUF_strlcpy(buf[0], serialfile, BSIZE);
+        OPENSSL_strlcpy(buf[0], serialfile, BSIZE);
     else {
 #ifndef OPENSSL_SYS_VMS
         j = BIO_snprintf(buf[0], sizeof buf[0], "%s.%s", serialfile, suffix);
@@ -1930,7 +1930,7 @@ int pkey_ctrl_string(EVP_PKEY_CTX *ctx, char *value)
 {
     int rv;
     char *stmp, *vtmp = NULL;
-    stmp = BUF_strdup(value);
+    stmp = OPENSSL_strdup(value);
     if (!stmp)
         return -1;
     vtmp = strchr(stmp, ':');
@@ -2796,7 +2796,7 @@ BIO *bio_open_owner(const char *filename, int format, int private)
 {
     FILE *fp = NULL;
     BIO *b = NULL;
-    int fd = -1, bflags, mode, binmode;
+    int fd = -1, bflags, mode, textmode;
 
     if (!private || filename == NULL || strcmp(filename, "-") == 0)
         return bio_open_default(filename, 'w', format);
@@ -2808,8 +2808,8 @@ BIO *bio_open_owner(const char *filename, int format, int private)
 #ifdef O_TRUNC
     mode |= O_TRUNC;
 #endif
-    binmode = istext(format);
-    if (binmode) {
+    textmode = istext(format);
+    if (!textmode) {
 #ifdef O_BINARY
         mode |= O_BINARY;
 #elif defined(_O_BINARY)
@@ -2817,14 +2817,24 @@ BIO *bio_open_owner(const char *filename, int format, int private)
 #endif
     }
 
-    fd = open(filename, mode, 0600);
+#ifdef OPENSSL_SYS_VMS
+    /* VMS doesn't have O_BINARY, it just doesn't make sense.  But,
+     * it still needs to know that we're going binary, or fdopen()
+     * will fail with "invalid argument"...  so we tell VMS what the
+     * context is.
+     */
+    if (!textmode)
+        fd = open(filename, mode, 0600, "ctx=bin");
+    else
+#endif
+        fd = open(filename, mode, 0600);
     if (fd < 0)
         goto err;
     fp = fdopen(fd, modestr('w', format));
     if (fp == NULL)
         goto err;
     bflags = BIO_CLOSE;
-    if (!binmode)
+    if (textmode)
         bflags |= BIO_FP_TEXT;
     b = BIO_new_fp(fp, bflags);
     if (b)

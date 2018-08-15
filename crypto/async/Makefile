@@ -1,3 +1,4 @@
+# Generated from Makefile.in, do not edit
 #
 # OpenSSL/crypto/async/Makefile
 #
@@ -74,51 +75,8 @@ clean:
 	rm -f *.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
 	rm -f arch/*.o arch/*.obj arch/lib arch/tags arch/core arch/.pure arch/.nfs* arch/*.old arch/*.bak arch/fluff
 
-# DO NOT DELETE THIS LINE -- make depend depends on it.
+# Different flavours of make disagree on where output goes
+.c.o:
+	$(CC) $(CFLAGS) -c $< -o $@
 
-arch/async_null.o: ../../include/openssl/async.h ../../include/openssl/crypto.h
-arch/async_null.o: ../../include/openssl/e_os2.h
-arch/async_null.o: ../../include/openssl/opensslconf.h
-arch/async_null.o: ../../include/openssl/opensslv.h
-arch/async_null.o: ../../include/openssl/ossl_typ.h
-arch/async_null.o: ../../include/openssl/safestack.h
-arch/async_null.o: ../../include/openssl/stack.h
-arch/async_null.o: ../../include/openssl/symhacks.h arch/../arch/async_null.h
-arch/async_null.o: arch/../arch/async_posix.h arch/../arch/async_win.h
-arch/async_null.o: arch/../async_locl.h arch/async_null.c
-arch/async_posix.o: ../../include/openssl/async.h
-arch/async_posix.o: ../../include/openssl/crypto.h
-arch/async_posix.o: ../../include/openssl/e_os2.h
-arch/async_posix.o: ../../include/openssl/opensslconf.h
-arch/async_posix.o: ../../include/openssl/opensslv.h
-arch/async_posix.o: ../../include/openssl/ossl_typ.h
-arch/async_posix.o: ../../include/openssl/safestack.h
-arch/async_posix.o: ../../include/openssl/stack.h
-arch/async_posix.o: ../../include/openssl/symhacks.h arch/../arch/async_null.h
-arch/async_posix.o: arch/../arch/async_posix.h arch/../arch/async_win.h
-arch/async_posix.o: arch/../async_locl.h arch/async_posix.c
-arch/async_win.o: ../../include/openssl/async.h ../../include/openssl/crypto.h
-arch/async_win.o: ../../include/openssl/e_os2.h
-arch/async_win.o: ../../include/openssl/opensslconf.h
-arch/async_win.o: ../../include/openssl/opensslv.h
-arch/async_win.o: ../../include/openssl/ossl_typ.h
-arch/async_win.o: ../../include/openssl/safestack.h
-arch/async_win.o: ../../include/openssl/stack.h
-arch/async_win.o: ../../include/openssl/symhacks.h arch/../arch/async_null.h
-arch/async_win.o: arch/../arch/async_posix.h arch/../arch/async_win.h
-arch/async_win.o: arch/../async_locl.h arch/async_win.c
-async.o: ../../include/openssl/async.h ../../include/openssl/bio.h
-async.o: ../../include/openssl/crypto.h ../../include/openssl/e_os2.h
-async.o: ../../include/openssl/err.h ../../include/openssl/lhash.h
-async.o: ../../include/openssl/opensslconf.h ../../include/openssl/opensslv.h
-async.o: ../../include/openssl/ossl_typ.h ../../include/openssl/safestack.h
-async.o: ../../include/openssl/stack.h ../../include/openssl/symhacks.h
-async.o: arch/async_null.h arch/async_posix.h arch/async_win.h async.c
-async.o: async_locl.h
-async_err.o: ../../include/openssl/async.h ../../include/openssl/bio.h
-async_err.o: ../../include/openssl/crypto.h ../../include/openssl/e_os2.h
-async_err.o: ../../include/openssl/err.h ../../include/openssl/lhash.h
-async_err.o: ../../include/openssl/opensslconf.h
-async_err.o: ../../include/openssl/opensslv.h ../../include/openssl/ossl_typ.h
-async_err.o: ../../include/openssl/safestack.h ../../include/openssl/stack.h
-async_err.o: ../../include/openssl/symhacks.h async_err.c
+# DO NOT DELETE THIS LINE -- make depend depends on it.

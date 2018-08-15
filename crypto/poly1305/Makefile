@@ -1,3 +1,4 @@
+# Generated from Makefile.in, do not edit
 #
 # OpenSSL/crypto/poly1305/Makefile
 #
@@ -10,17 +11,17 @@ INCLUDES=
 CFLAG=-g
 AR=		ar r
 
+POLY1305_ASM_OBJ=
+
 CFLAGS= $(INCLUDES) $(CFLAG)
 ASFLAGS= $(INCLUDES) $(ASFLAG)
 AFLAGS= $(ASFLAGS)
 
 GENERAL=Makefile
-TEST=
-APPS=
 
 LIB=$(TOP)/libcrypto.a
 LIBSRC=poly1305.c
-LIBOBJ=poly1305.o
+LIBOBJ=poly1305.o $(POLY1305_ASM_OBJ)
 
 SRC= $(LIBSRC)
 
@@ -61,5 +62,3 @@ clean:
 	rm -f *.s *.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
-
-poly1305.o: ../include/internal/poly1305.h poly1305.c

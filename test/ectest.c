@@ -1412,7 +1412,7 @@ struct nistp_test_params {
     int degree;
     /*
      * Qx, Qy and D are taken from
-     * http://csrcdocut.gov/groups/ST/toolkit/documents/Examples/ECDSA_Prime.pdf
+     * http://csrc.nist.gov/groups/ST/toolkit/documents/Examples/ECDSA_Prime.pdf
      * Otherwise, values are standard curve parameters from FIPS 180-3
      */
     const char *p, *a, *b, *Qx, *Qy, *Gx, *Gy, *order, *d;
@@ -1637,16 +1637,11 @@ static const char rnd_seed[] =
 
 int main(int argc, char *argv[])
 {
+    char *p;
 
-    /* enable memory leak checking unless explicitly disabled */
-    if (!((getenv("OPENSSL_DEBUG_MEMORY") != NULL)
-          && (0 == strcmp(getenv("OPENSSL_DEBUG_MEMORY"), "off")))) {
-        CRYPTO_malloc_debug_init();
-        CRYPTO_set_mem_debug_options(V_CRYPTO_MDEBUG_ALL);
-    } else {
-        /* OPENSSL_DEBUG_MEMORY=off */
-        CRYPTO_set_mem_debug_functions(0, 0, 0, 0, 0);
-    }
+    p = getenv("OPENSSL_DEBUG_MEMORY");
+    if (p != NULL && strcmp(p, "on") == 0)
+        CRYPTO_set_mem_debug(1);
     CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ON);
     ERR_load_crypto_strings();
 
@@ -1669,7 +1664,9 @@ int main(int argc, char *argv[])
     CRYPTO_cleanup_all_ex_data();
     ERR_free_strings();
     ERR_remove_thread_state(NULL);
+#ifndef OPENSSL_NO_CRYPTO_MDEBUG
     CRYPTO_mem_leaks_fp(stderr);
+#endif
 
     return 0;
 }

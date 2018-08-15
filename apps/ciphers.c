@@ -93,6 +93,7 @@ OPTIONS ciphers_options[] = {
     {NULL}
 };
 
+#ifndef OPENSSL_NO_PSK
 static unsigned int dummy_psk(SSL *ssl, const char *hint, char *identity,
                               unsigned int max_identity_len,
                               unsigned char *psk,
@@ -100,6 +101,7 @@ static unsigned int dummy_psk(SSL *ssl, const char *hint, char *identity,
 {
     return 0;
 }
+#endif
 
 int ciphers_main(int argc, char **argv)
 {
@@ -198,7 +200,7 @@ int ciphers_main(int argc, char **argv)
 
     if (!verbose) {
         for (i = 0; i < sk_SSL_CIPHER_num(sk); i++) {
-            SSL_CIPHER *c = sk_SSL_CIPHER_value(sk, i);
+            const SSL_CIPHER *c = sk_SSL_CIPHER_value(sk, i);
             p = SSL_CIPHER_get_name(c);
             if (p == NULL)
                 break;
@@ -210,7 +212,7 @@ int ciphers_main(int argc, char **argv)
     } else {
 
         for (i = 0; i < sk_SSL_CIPHER_num(sk); i++) {
-            SSL_CIPHER *c;
+            const SSL_CIPHER *c;
 
             c = sk_SSL_CIPHER_value(sk, i);
 

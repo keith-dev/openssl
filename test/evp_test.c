@@ -487,7 +487,7 @@ static int process_test(struct evp_test *t, char *buf, int verbose)
         key = OPENSSL_malloc(sizeof(*key));
         if (!key)
             return 0;
-        key->name = BUF_strdup(value);
+        key->name = OPENSSL_strdup(value);
         key->key = pk;
         key->next = *lst;
         *lst = key;
@@ -521,7 +521,7 @@ static int process_test(struct evp_test *t, char *buf, int verbose)
             fprintf(stderr, "Line %d: multiple result lines\n", t->line);
             return 0;
         }
-        t->expected_err = BUF_strdup(value);
+        t->expected_err = OPENSSL_strdup(value);
         if (!t->expected_err)
             return 0;
     } else {
@@ -554,9 +554,9 @@ static int check_var_length_output(struct evp_test *t,
     }
 
     /* The result printing code expects a non-NULL buffer. */
-    t->out_expected = BUF_memdup(expected, expected_len ? expected_len : 1);
+    t->out_expected = OPENSSL_memdup(expected, expected_len ? expected_len : 1);
     t->out_expected_len = expected_len;
-    t->out_received = BUF_memdup(received, received_len ? received_len : 1);
+    t->out_received = OPENSSL_memdup(received, received_len ? received_len : 1);
     t->out_received_len = received_len;
     if (t->out_expected == NULL || t->out_received == NULL) {
         fprintf(stderr, "Memory allocation error!\n");
@@ -610,7 +610,9 @@ int main(int argc, char **argv)
     CRYPTO_cleanup_all_ex_data();
     ERR_remove_thread_state(NULL);
     ERR_free_strings();
+#ifndef OPENSSL_NO_CRYPTO_MDEBUG
     CRYPTO_mem_leaks_fp(stderr);
+#endif
     if (t.errors)
         return 1;
     return 0;
@@ -1052,7 +1054,7 @@ static int mac_test_parse(struct evp_test *t,
     if (strcmp(keyword, "Key") == 0)
         return test_bin(value, &mdata->key, &mdata->key_len);
     if (strcmp(keyword, "Algorithm") == 0) {
-        mdata->alg = BUF_strdup(value);
+        mdata->alg = OPENSSL_strdup(value);
         if (!mdata->alg)
             return 0;
         return 1;
@@ -1554,7 +1556,7 @@ static int encode_test_init(struct evp_test *t, const char *encoding)
         edata->encoding = BASE64_VALID_ENCODING;
     } else if (strcmp(encoding, "invalid") == 0) {
         edata->encoding = BASE64_INVALID_ENCODING;
-        t->expected_err = BUF_strdup("DECODE_ERROR");
+        t->expected_err = OPENSSL_strdup("DECODE_ERROR");
         if (t->expected_err == NULL)
             return 0;
     } else {
@@ -1591,21 +1593,28 @@ static int encode_test_run(struct evp_test *t)
     unsigned char *encode_out = NULL, *decode_out = NULL;
     int output_len, chunk_len;
     const char *err = "INTERNAL_ERROR";
-    EVP_ENCODE_CTX decode_ctx;
+    EVP_ENCODE_CTX *decode_ctx = EVP_ENCODE_CTX_new();
+
+    if (decode_ctx == NULL)
+        goto err;
 
     if (edata->encoding == BASE64_CANONICAL_ENCODING) {
-        EVP_ENCODE_CTX encode_ctx;
+        EVP_ENCODE_CTX *encode_ctx = EVP_ENCODE_CTX_new();
+        if (encode_ctx == NULL)
+            goto err;
         encode_out = OPENSSL_malloc(EVP_ENCODE_LENGTH(edata->input_len));
         if (encode_out == NULL)
             goto err;
 
-        EVP_EncodeInit(&encode_ctx);
-        EVP_EncodeUpdate(&encode_ctx, encode_out, &chunk_len,
+        EVP_EncodeInit(encode_ctx);
+        EVP_EncodeUpdate(encode_ctx, encode_out, &chunk_len,
                          edata->input, edata->input_len);
         output_len = chunk_len;
 
-        EVP_EncodeFinal(&encode_ctx, encode_out + chunk_len, &chunk_len);
+        EVP_EncodeFinal(encode_ctx, encode_out + chunk_len, &chunk_len);
         output_len += chunk_len;
+
+        EVP_ENCODE_CTX_free(encode_ctx);
 
         if (check_var_length_output(t, edata->output, edata->output_len,
                                     encode_out, output_len)) {
@@ -1618,15 +1627,15 @@ static int encode_test_run(struct evp_test *t)
     if (decode_out == NULL)
         goto err;
 
-    EVP_DecodeInit(&decode_ctx);
-    if (EVP_DecodeUpdate(&decode_ctx, decode_out, &chunk_len, edata->output,
+    EVP_DecodeInit(decode_ctx);
+    if (EVP_DecodeUpdate(decode_ctx, decode_out, &chunk_len, edata->output,
                          edata->output_len) < 0) {
         err = "DECODE_ERROR";
         goto err;
     }
     output_len = chunk_len;
 
-    if (EVP_DecodeFinal(&decode_ctx, decode_out + chunk_len, &chunk_len) != 1) {
+    if (EVP_DecodeFinal(decode_ctx, decode_out + chunk_len, &chunk_len) != 1) {
         err = "DECODE_ERROR";
         goto err;
     }
@@ -1644,6 +1653,7 @@ static int encode_test_run(struct evp_test *t)
     t->err = err;
     OPENSSL_free(encode_out);
     OPENSSL_free(decode_out);
+    EVP_ENCODE_CTX_free(decode_ctx);
     return 1;
 }
 
